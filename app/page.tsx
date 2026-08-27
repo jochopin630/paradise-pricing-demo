@@ -7,6 +7,7 @@ export default function ParadisePricingDashboard() {
   // 1. 상태 관리
   const [activeMenu, setActiveMenu] = useState('대시보드');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState('방금 전'); // 💡 이 부분이 누락되었었습니다!
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // 캘린더 모달 상태
@@ -15,7 +16,7 @@ export default function ParadisePricingDashboard() {
   const [endDate, setEndDate] = useState('2026-10-14');
   const [dateRangeLabel, setDateRangeLabel] = useState('2026.10.01 ~ 10.14 (성수기/황금연휴)');
 
-  // 지표별 상세 모달 상태 (신규 추가)
+  // 지표별 상세 모달 상태
   const [isRevenueModalOpen, setIsRevenueModalOpen] = useState(false);
   const [isOccModalOpen, setIsOccModalOpen] = useState(false);
   const [isFlightModalOpen, setIsFlightModalOpen] = useState(false);
@@ -187,7 +188,7 @@ export default function ParadisePricingDashboard() {
         </div>
       )}
 
-      {/* 1. 영업이익 상세 팝업 모달 (신규) */}
+      {/* 1. 영업이익 상세 팝업 모달 */}
       {isRevenueModalOpen && (
         <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-xs z-50 flex items-center justify-center">
           <div className="bg-white rounded-xl shadow-2xl border border-slate-200 w-[500px] p-6 flex flex-col gap-4 animate-in fade-in zoom-in-95 duration-150">
@@ -228,7 +229,7 @@ export default function ParadisePricingDashboard() {
         </div>
       )}
 
-      {/* 2. 실질 점유율 상세 팝업 모달 (신규) */}
+      {/* 2. 실질 점유율 상세 팝업 모달 */}
       {isOccModalOpen && (
         <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-xs z-50 flex items-center justify-center">
           <div className="bg-white rounded-xl shadow-2xl border border-slate-200 w-[500px] p-6 flex flex-col gap-4 animate-in fade-in zoom-in-95 duration-150">
