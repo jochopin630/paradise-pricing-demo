@@ -74,11 +74,13 @@ export default function ParadisePricingDashboard() {
   const [maxRise, setMaxRise] = useState(30);
   const [sensitivity, setSensitivity] = useState<'Low' | 'Mid' | 'High'>('High');
 
-  // 4. 객실 타입별 기준가 관리 상태
+  // 4. 객실 타입별 기준가 관리 상태 (고객사 요청 데이터 완벽 반영)
   const [roomConfigs, setRoomConfigs] = useState([
-    { type: '디럭스 (Deluxe)', basePrice: 320000, minPrice: 250000, maxPrice: 500000 },
-    { type: '코너 스위트 (Suite)', basePrice: 650000, minPrice: 550000, maxPrice: 1100000 },
-    { type: '그랜드 풀빌라 (Pool Villa)', basePrice: 2200000, minPrice: 1800000, maxPrice: 3500000 }
+    { type: '디럭스 라인 (Deluxe)', desc: '커플, 2030 호캉스, 비즈니스', basePrice: 350000, minPrice: 300000, maxPrice: 700000 },
+    { type: '스위트 라인 (Suite)', desc: '키즈/패밀리, 원더박스 패키지 주력', basePrice: 750000, minPrice: 600000, maxPrice: 1600000 },
+    { type: '이그제큐티브 (Executive)', desc: 'MICE VIP, 프리미엄 비즈니스 (라운지)', basePrice: 1200000, minPrice: 900000, maxPrice: 2500000 },
+    { type: '아트파라디소 (Art Paradiso)', desc: '100% 스위트, 성인 전용 프라이빗 럭셔리', basePrice: 650000, minPrice: 500000, maxPrice: 1400000 },
+    { type: '최상위 풀빌라 (Pool Villa)', desc: '초우량 VIP, 프라이빗 럭셔리 최상위', basePrice: 7500000, minPrice: 5000000, maxPrice: 20000000 }
   ]);
 
   // 5. AI 룰 설정 상태
@@ -136,7 +138,7 @@ export default function ParadisePricingDashboard() {
 
           return { date: dateStr, price: finalPrice.toLocaleString() + '원', status, rate: Math.min(99, Math.round(demandFactor * 100)) + '%' };
         });
-        return { type: room.type, basePrice: room.basePrice, rates: newRates };
+        return { type: room.type, basePrice: room.basePrice, desc: room.desc, rates: newRates };
       });
 
       setRoomRates(updatedRates);
@@ -157,14 +159,14 @@ export default function ParadisePricingDashboard() {
     let current = new Date(startDate);
     const stop = new Date(endDate);
     
-    while (current <= stop && newDates.length < 14) { // UI를 위해 최대 14일치만 표출
+    while (current <= stop && newDates.length < 14) { 
       const m = String(current.getMonth() + 1).padStart(2, '0');
       const d = String(current.getDate()).padStart(2, '0');
       newDates.push(`${m}.${d}`);
       current.setDate(current.getDate() + 1);
     }
     
-    if(newDates.length === 0) newDates.push('10.01'); // 안전 장치
+    if(newDates.length === 0) newDates.push('10.01'); 
     
     setDates(newDates);
     setDateRangeLabel(`${startDate} ~ ${endDate} (선택 기간)`);
@@ -195,7 +197,7 @@ export default function ParadisePricingDashboard() {
         </div>
       )}
 
-      {/* 각종 팝업 모달들 (수익, 점유율, 캘린더, 공항, 경쟁사) */}
+      {/* 각종 팝업 모달들 */}
       {isRevenueModalOpen && (
         <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-xs z-50 flex items-center justify-center">
           <div className="bg-white rounded-xl shadow-2xl border border-slate-200 w-[500px] p-6 flex flex-col gap-4 animate-in fade-in zoom-in-95">
@@ -390,11 +392,11 @@ export default function ParadisePricingDashboard() {
                 <div className="flex-1 bg-white rounded-lg border border-slate-200 p-4 flex flex-col overflow-hidden shadow-2xs">
                   <div className="flex justify-between items-end mb-3 shrink-0">
                     <div>
-                      <h2 className="text-xs font-bold text-slate-800 uppercase tracking-wide">객실 타입별 실시간 다이내믹 요금 히트맵</h2>
+                      <h2 className="text-xs font-bold text-slate-800 uppercase tracking-wide">객실 라인업별 실시간 다이내믹 요금 히트맵</h2>
                     </div>
                   </div>
 
-                  {/* 💡 추가된 부분: 히트맵 색상 단계 직관적 설명 패널 */}
+                  {/* 히트맵 색상 단계 직관적 설명 패널 */}
                   <div className="bg-slate-50 border border-slate-200 rounded-md p-2.5 mb-3 text-[10px] text-slate-600 grid grid-cols-4 gap-2 shrink-0 shadow-inner">
                     <div className="flex flex-col gap-1 border-r border-slate-200 pr-2">
                       <span className="font-bold text-red-800 flex items-center gap-1"><div className="w-2.5 h-2.5 bg-red-800 rounded-full"></div> 만실임박 (Dark Red)</span>
@@ -418,7 +420,7 @@ export default function ParadisePricingDashboard() {
                     <table className="w-full text-center">
                       <thead>
                         <tr className="bg-slate-100 sticky top-0 z-10 text-slate-700 shadow-sm">
-                          <th className="border-b border-r border-slate-200 p-2.5 font-bold w-36 text-left pl-4 bg-slate-100">객실 타입</th>
+                          <th className="border-b border-r border-slate-200 p-2.5 font-bold w-48 text-left pl-4 bg-slate-100">객실 라인업</th>
                           {dates.map((d, i) => (
                             <th key={i} className={`border-b border-r border-slate-200 p-2 font-bold bg-slate-100 ${checkWeekend(d) ? 'text-amber-600 bg-amber-50/50' : ''}`}>
                               {d}
@@ -432,7 +434,8 @@ export default function ParadisePricingDashboard() {
                           <tr key={idx}>
                             <td className="border-b border-r border-slate-200 p-2.5 font-bold text-slate-700 bg-slate-50 text-left pl-4 sticky left-0 z-10 shadow-sm">
                               {room.type}
-                              <div className="text-[10px] font-normal text-slate-400 mt-0.5">기준: {(room.basePrice/10000).toFixed(0)}만원</div>
+                              <div className="text-[10px] font-normal text-slate-500 mt-0.5">{room.desc}</div>
+                              <div className="text-[10px] font-bold text-amber-700 mt-1">기준가: {(room.basePrice/10000).toLocaleString()}만원</div>
                             </td>
                             {room.rates.map((rate: any, i: number) => (
                               <td key={i} className={`border-b border-r border-slate-200 p-1.5 transition-colors ${getBgColor(rate?.status)}`}>
@@ -510,16 +513,19 @@ export default function ParadisePricingDashboard() {
           {activeMenu === '요금 설정' && (
             <div className="flex-1 bg-white rounded-lg border border-slate-200 p-6 flex flex-col gap-5 overflow-auto shadow-2xs">
               <div className="flex justify-between items-center border-b border-slate-100 pb-4">
-                <div><h2 className="text-base font-bold text-slate-800 flex items-center gap-2"><Sliders size={20} className="text-amber-600" /> 객실 타입별 기준 요금 및 가격 가드레일 설정</h2><p className="text-xs text-slate-400 mt-0.5">다이내믹 프라이싱 엔진이 준수해야 할 객실별 기준가 및 상하한 방어선</p></div>
+                <div><h2 className="text-base font-bold text-slate-800 flex items-center gap-2"><Sliders size={20} className="text-amber-600" /> 라인업별 기준 요금 및 가격 가드레일 설정</h2><p className="text-xs text-slate-400 mt-0.5">다이내믹 프라이싱 엔진이 준수해야 할 객실별 기준가 및 상하한 방어선</p></div>
                 <button onClick={() => { applyAI(); showToast('요금 설정 값이 대시보드 히트맵에 실시간 반영되었습니다!'); }} className="flex items-center gap-2 bg-amber-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-amber-700 shadow-xs text-xs"><Save size={14} /> 요금 정책 저장 및 반영</button>
               </div>
-              <div className="grid grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {roomConfigs.map((room, idx) => (
                   <div key={idx} className="bg-slate-50 border border-slate-200 rounded-xl p-5 flex flex-col gap-4">
-                    <div className="font-bold text-slate-800 text-sm border-b border-slate-200 pb-2">{room.type}</div>
-                    <div><label className="block text-xs font-medium text-slate-600 mb-1">기본 객실가 (Base Rate)</label><input type="number" step="10000" value={room.basePrice} onChange={(e) => { const updated = [...roomConfigs]; updated[idx].basePrice = Number(e.target.value); setRoomConfigs(updated); }} className="w-full border border-slate-300 rounded-lg p-2.5 text-xs font-bold bg-white outline-none" /></div>
-                    <div><label className="block text-xs font-medium text-slate-600 mb-1">최저 방어 요금 (Floor Price)</label><input type="number" step="10000" value={room.minPrice} onChange={(e) => { const updated = [...roomConfigs]; updated[idx].minPrice = Number(e.target.value); setRoomConfigs(updated); }} className="w-full border border-slate-300 rounded-lg p-2.5 text-xs font-bold bg-white outline-none" /></div>
-                    <div><label className="block text-xs font-medium text-slate-600 mb-1">최고 상한 요금 (Max Ceiling)</label><input type="number" step="10000" value={room.maxPrice} onChange={(e) => { const updated = [...roomConfigs]; updated[idx].maxPrice = Number(e.target.value); setRoomConfigs(updated); }} className="w-full border border-slate-300 rounded-lg p-2.5 text-xs font-bold bg-white outline-none" /></div>
+                    <div className="border-b border-slate-200 pb-3">
+                      <div className="font-bold text-slate-800 text-sm">{room.type}</div>
+                      <div className="text-[10px] text-slate-500 mt-1 break-keep">{room.desc}</div>
+                    </div>
+                    <div><label className="block text-xs font-medium text-slate-600 mb-1">주중 기준가 (Base Rate)</label><input type="number" step="10000" value={room.basePrice} onChange={(e) => { const updated = [...roomConfigs]; updated[idx].basePrice = Number(e.target.value); setRoomConfigs(updated); }} className="w-full border border-slate-300 rounded-lg p-2.5 text-xs font-bold bg-white outline-none" /></div>
+                    <div><label className="block text-xs font-medium text-slate-600 mb-1">최저 방어 요금 (Min Price)</label><input type="number" step="10000" value={room.minPrice} onChange={(e) => { const updated = [...roomConfigs]; updated[idx].minPrice = Number(e.target.value); setRoomConfigs(updated); }} className="w-full border border-slate-300 rounded-lg p-2.5 text-xs font-bold bg-white outline-none" /></div>
+                    <div><label className="block text-xs font-medium text-slate-600 mb-1">최고 할증 요금 (Max Peak)</label><input type="number" step="10000" value={room.maxPrice} onChange={(e) => { const updated = [...roomConfigs]; updated[idx].maxPrice = Number(e.target.value); setRoomConfigs(updated); }} className="w-full border border-slate-300 rounded-lg p-2.5 text-xs font-bold bg-white outline-none" /></div>
                   </div>
                 ))}
               </div>
