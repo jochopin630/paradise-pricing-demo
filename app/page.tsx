@@ -1,4 +1,4 @@
-use client;
+"use client";
 
 import React, { useState, useEffect } from 'react';
 import { LayoutDashboard, Settings, CalendarDays, LineChart, Cpu, Bell, ChevronDown, Loader2, PlaneTakeoff, Building2, ShieldAlert, Sliders, Sparkles, X, ExternalLink, Save, CheckCircle2, DollarSign, PieChart, RefreshCcw } from 'lucide-react';
