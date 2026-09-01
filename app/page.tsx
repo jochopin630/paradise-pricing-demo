@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { LayoutDashboard, Settings, CalendarDays, LineChart, Cpu, Bell, ChevronDown, Loader2, PlaneTakeoff, Building2, ShieldAlert, Sliders, Sparkles, X, ExternalLink, Save, CheckCircle2, DollarSign, PieChart, RefreshCcw } from 'lucide-react';
 
 export default function ParadisePricingDashboard() {
+  // 1. 상태 관리
   const [activeMenu, setActiveMenu] = useState('대시보드');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState('방금 전');
@@ -14,21 +15,24 @@ export default function ParadisePricingDashboard() {
   const [startDate, setStartDate] = useState('2026-10-01');
   const [endDate, setEndDate] = useState('2026-10-14');
   const [dateRangeLabel, setDateRangeLabel] = useState('2026.10.01 ~ 10.14 (성수기/황금연휴)');
+  
+  // 동적 날짜 배열 (초기값 설정)
   const [dates, setDates] = useState(['10.01', '10.02', '10.03', '10.04', '10.05', '10.06', '10.07', '10.08', '10.09', '10.10', '10.11', '10.12', '10.13', '10.14']);
 
+  // 지표별 상세 모달 상태
   const [isRevenueModalOpen, setIsRevenueModalOpen] = useState(false);
   const [isOccModalOpen, setIsOccModalOpen] = useState(false);
   const [isFlightModalOpen, setIsFlightModalOpen] = useState(false);
   const [isCompetitorModalOpen, setIsCompetitorModalOpen] = useState(false);
 
-  // 시나리오 환경 변수
+  // 2. 파라다이스시티 맞춤형 외부 환경 시나리오
   const scenarios = {
     normal: { 
       id: 'normal', name: '평시 (Standard Week)', baseOcc: 74, compPrice: 310000, 
       flightIndex: '안정적 (인천공항 일일 입국 10만석)', 
-      flightDetail: { pax: '102450', flights: '610', chinaRate: '38%', charter: '0편' },
+      flightDetail: { pax: '102,450명/일', flights: '610편착륙', chinaRate: '38%', charter: '0편' },
       competitors: [
-        { name: '인스파이어 엔터테인먼트', avgPrice: '320,000원', occ: '72%', position: '영종도 인근 (경쟁)' },
+        { name: '인스파이어 엔터테인먼트 리조트', avgPrice: '320,000원', occ: '72%', position: '영종도 인근 (경쟁)' },
         { name: '그랜드 하얏트 인천', avgPrice: '290,000원', occ: '68%', position: '공항 인접 (비즈니스)' },
         { name: '네스트 호텔', avgPrice: '220,000원', occ: '75%', position: '수요 분산 (디자인)' }
       ],
@@ -39,9 +43,9 @@ export default function ParadisePricingDashboard() {
     vip: { 
       id: 'vip', name: '외국인 VIP 카지노 초청행사 (High Roller)', baseOcc: 96, compPrice: 420000, 
       flightIndex: '매우 높음 (중화권 비즈니스젯 및 전세기 집중)', 
-      flightDetail: { pax: '145200', flights: '780', chinaRate: '65%', charter: '12편 (VIP 전용)' },
+      flightDetail: { pax: '145,200명/일 (+42%)', flights: '780편착륙', chinaRate: '65%', charter: '12편 (VIP 전용)' },
       competitors: [
-        { name: '인스파이어 엔터테인먼트', avgPrice: '440,000원', occ: '94%', position: '영종도 인근 (경쟁)' },
+        { name: '인스파이어 엔터테인먼트 리조트', avgPrice: '440,000원', occ: '94%', position: '영종도 인근 (경쟁)' },
         { name: '그랜드 하얏트 인천', avgPrice: '360,000원', occ: '85%', position: '공항 인접 (비즈니스)' },
         { name: '네스트 호텔', avgPrice: '280,000원', occ: '88%', position: '수요 분산 (디자인)' }
       ],
@@ -50,11 +54,11 @@ export default function ParadisePricingDashboard() {
       baseRevenue: 89500000 
     },
     mice: { 
-      id: 'mice', name: '대규모 국제 회의 및 아트페어 (FRIEZE)', baseOcc: 91, compPrice: 390000, 
+      id: 'mice', name: '대규모 국제 회의 및 아트페어 (FRIEZE 연계)', baseOcc: 91, compPrice: 390000, 
       flightIndex: '높음 (글로벌 비즈니스 및 예술계 입국 집중)', 
-      flightDetail: { pax: '131000', flights: '720', chinaRate: '45%', charter: '3편' },
+      flightDetail: { pax: '131,000명/일 (+28%)', flights: '720편착륙', chinaRate: '45%', charter: '3편' },
       competitors: [
-        { name: '인스파이어 엔터테인먼트', avgPrice: '390,000원', occ: '89%', position: '영종도 인근 (경쟁)' },
+        { name: '인스파이어 엔터테인먼트 리조트', avgPrice: '390,000원', occ: '89%', position: '영종도 인근 (경쟁)' },
         { name: '그랜드 하얏트 인천', avgPrice: '340,000원', occ: '82%', position: '공항 인접 (비즈니스)' },
         { name: '네스트 호텔', avgPrice: '260,000원', occ: '84%', position: '수요 분산 (디자인)' }
       ],
@@ -65,31 +69,32 @@ export default function ParadisePricingDashboard() {
   };
   const [currentScenario, setCurrentScenario] = useState('normal');
 
+  // 3. 다이내믹 프라이싱 설정 및 민감도 상태
   const [minDrop, setMinDrop] = useState(-10);
   const [maxRise, setMaxRise] = useState(30);
   const [sensitivity, setSensitivity] = useState<'Low' | 'Mid' | 'High'>('High');
 
+  // 4. 객실 타입별 기준가 관리 상태
   const [roomConfigs, setRoomConfigs] = useState([
     { type: '디럭스 (Deluxe)', basePrice: 320000, minPrice: 250000, maxPrice: 500000 },
     { type: '코너 스위트 (Suite)', basePrice: 650000, minPrice: 550000, maxPrice: 1100000 },
     { type: '그랜드 풀빌라 (Pool Villa)', basePrice: 2200000, minPrice: 1800000, maxPrice: 3500000 }
   ]);
 
+  // 5. AI 룰 설정 상태
   const [aiRules, setAiRules] = useState({
     autoPriceSync: true, casinoBlockProtection: true, competitorUnderCutGuard: true, weekendSurgeBoost: true
   });
 
   const [metrics, setMetrics] = useState(scenarios['normal']);
   const [roomRates, setRoomRates] = useState<any[]>([]);
-  
-  // [신규] 공공데이터포털 연동용 일별 항공 트래픽 상태 관리
-  const [dailyFlights, setDailyFlights] = useState<any[]>([]);
 
+  // 특정 날짜가 주말(금, 토)인지 동적으로 판별하는 함수
   const checkWeekend = (dateStr: string) => {
     const year = startDate.split('-')[0] || new Date().getFullYear().toString();
     const [m, d] = dateStr.split('.');
     const dayOfWeek = new Date(`${year}-${m}-${d}`).getDay();
-    return dayOfWeek === 5 || dayOfWeek === 6; 
+    return dayOfWeek === 5 || dayOfWeek === 6; // 5: 금요일, 6: 토요일
   };
 
   const getBgColor = (status: string) => {
@@ -101,57 +106,26 @@ export default function ParadisePricingDashboard() {
     }
   };
 
-  // [핵심] 가상의 OpenAPI 호출 및 일별 트래픽 가공 함수
-  const fetchAirportData = (selectedDates: string[], scenario: any) => {
-    /* 
-      💡 실제 배포 시 여기에 공공데이터포털(data.go.kr) Fetch 코드가 들어갑니다.
-      const url = `http://apis.data.go.kr/B551177/PassengerNoticeKR/getfPassengerNoticeMI?serviceKey=인증키&selectdate=${날짜}`;
-      const response = await fetch(url);
-      ...
-    */
-    
-    // 현재는 시스템 구조를 보여주기 위해 선택된 날짜와 요일 특성을 반영하여 일별 Mock 데이터를 생성합니다.
-    const basePax = parseInt(scenario.flightDetail.pax);
-    const baseFlights = parseInt(scenario.flightDetail.flights);
-
-    const fetchedData = selectedDates.map(dateStr => {
-      const isWknd = checkWeekend(dateStr);
-      const randomNoise = 1 + (Math.random() * 0.06 - 0.03); // -3% ~ +3% 오차율 적용
-      const weekendMultiplier = isWknd ? 1.18 : 0.95; // 주말 트래픽 18% 증가 반영
-      
-      return {
-        date: dateStr,
-        pax: Math.round(basePax * weekendMultiplier * randomNoise),
-        flights: Math.round(baseFlights * weekendMultiplier * randomNoise),
-        isWeekend: isWknd
-      };
-    });
-
-    setDailyFlights(fetchedData);
-  };
-
   const applyAI = () => {
     setIsAnalyzing(true);
-    
-    // 시나리오가 바뀌거나 캘린더가 변경되면 항공 데이터 API도 재호출
-    const currentScen = scenarios[currentScenario as keyof typeof scenarios];
-    fetchAirportData(dates, currentScen);
-
     setTimeout(() => {
+      const scenarioData = scenarios[currentScenario as keyof typeof scenarios];
       let sensitivityMultiplier = sensitivity === 'High' ? 1.25 : sensitivity === 'Low' ? 0.75 : 1.0;
-      const adjustedRevenue = currentScen.baseRevenue * (1 + (maxRise * 0.004 * sensitivityMultiplier) - (Math.abs(minDrop) * 0.0015));
-      setMetrics({ ...currentScen, baseRevenue: adjustedRevenue });
+
+      const adjustedRevenue = scenarioData.baseRevenue * (1 + (maxRise * 0.004 * sensitivityMultiplier) - (Math.abs(minDrop) * 0.0015));
+      setMetrics({ ...scenarioData, baseRevenue: adjustedRevenue });
 
       const updatedRates = roomConfigs.map(room => {
         const newRates = dates.map(dateStr => {
           const isWeekend = checkWeekend(dateStr); 
-          let demandFactor = (currentScen.baseOcc / 100) + (isWeekend ? 0.18 : 0);
+          let demandFactor = (scenarioData.baseOcc / 100) + (isWeekend ? 0.18 : 0);
           
           let priceMultiplier = 1;
           if (demandFactor > 0.85) priceMultiplier = 1 + (maxRise / 100) * (demandFactor - 0.75) * sensitivityMultiplier;
           else if (demandFactor < 0.65) priceMultiplier = 1 + (minDrop / 100);
 
           let finalPrice = Math.round((room.basePrice * priceMultiplier) / 10000) * 10000;
+          
           if (finalPrice > room.maxPrice) finalPrice = room.maxPrice;
           if (finalPrice < room.minPrice) finalPrice = room.minPrice;
           
@@ -169,26 +143,28 @@ export default function ParadisePricingDashboard() {
       const now = new Date();
       setLastUpdated(`${now.getHours()}:${now.getMinutes()}:${now.getSeconds()}`);
       setIsAnalyzing(false);
-    }, 600);
+    }, 500);
   };
 
+  // 시나리오, 설정, '날짜(dates)' 변경 시 AI 산출 자동 재실행
   useEffect(() => { 
     applyAI(); 
   }, [currentScenario, roomConfigs, sensitivity, dates]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // 캘린더에서 기간 선택 시 날짜 배열 동적 생성 로직
   const handleDateApply = () => {
     const newDates = [];
     let current = new Date(startDate);
     const stop = new Date(endDate);
     
-    while (current <= stop && newDates.length < 14) { 
+    while (current <= stop && newDates.length < 14) { // UI를 위해 최대 14일치만 표출
       const m = String(current.getMonth() + 1).padStart(2, '0');
       const d = String(current.getDate()).padStart(2, '0');
       newDates.push(`${m}.${d}`);
       current.setDate(current.getDate() + 1);
     }
     
-    if(newDates.length === 0) newDates.push('10.01'); 
+    if(newDates.length === 0) newDates.push('10.01'); // 안전 장치
     
     setDates(newDates);
     setDateRangeLabel(`${startDate} ~ ${endDate} (선택 기간)`);
@@ -219,6 +195,7 @@ export default function ParadisePricingDashboard() {
         </div>
       )}
 
+      {/* 각종 팝업 모달들 (수익, 점유율, 캘린더, 공항, 경쟁사) */}
       {isRevenueModalOpen && (
         <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-xs z-50 flex items-center justify-center">
           <div className="bg-white rounded-xl shadow-2xl border border-slate-200 w-[500px] p-6 flex flex-col gap-4 animate-in fade-in zoom-in-95">
@@ -291,60 +268,22 @@ export default function ParadisePricingDashboard() {
         </div>
       )}
 
-      {/* [수정됨] 인천공항 연계 모달 - 일별 데이터 시각화 */}
       {isFlightModalOpen && (
         <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-xs z-50 flex items-center justify-center">
-          <div className="bg-white rounded-xl shadow-2xl border border-slate-200 w-[600px] p-6 flex flex-col gap-4 animate-in zoom-in-95">
+          <div className="bg-white rounded-xl shadow-2xl border border-slate-200 w-[480px] p-6 flex flex-col gap-4 animate-in zoom-in-95">
             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-              <h3 className="font-bold text-slate-800 flex items-center gap-2 text-sm"><PlaneTakeoff size={18} className="text-amber-600"/> 인천공항 일별 트래픽 (OpenAPI 연동 현황)</h3>
+              <h3 className="font-bold text-slate-800 flex items-center gap-2 text-sm"><PlaneTakeoff size={18} className="text-amber-600"/> 인천공항 연계 트래픽 인사이트</h3>
               <button onClick={() => setIsFlightModalOpen(false)} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
             </div>
             <div className="space-y-3 text-xs">
-              
-              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-amber-900 flex justify-between items-center">
-                <div>
-                  <div className="font-bold mb-1">[{metrics.name}] 시나리오 반영 데이터</div>
-                  <div className="text-[10px]">캘린더에서 선택하신 기간({dates.length}일)의 실제 일별 예상 입국객 추이입니다.</div>
-                </div>
-                <div className="text-right">
-                  <div className="text-[10px] mb-0.5">선택 기간 일일 평균</div>
-                  <div className="text-lg font-black text-amber-700">
-                    {dailyFlights.length > 0 ? Math.round(dailyFlights.reduce((acc, cur) => acc + cur.pax, 0) / dailyFlights.length).toLocaleString() : 0}명
-                  </div>
-                </div>
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-amber-900">
+                <div className="font-bold mb-1">현재 적용 시나리오: [{metrics.name}]</div>
+                <div>인천공항 데이터베이스와 연동되어 자동 반영 중입니다.</div>
               </div>
-              
-              <div className="max-h-64 overflow-y-auto border border-slate-200 rounded-lg bg-slate-50">
-                <table className="w-full text-center">
-                  <thead className="bg-slate-100 sticky top-0 text-[10px] text-slate-500 border-b border-slate-200 shadow-sm z-10">
-                    <tr>
-                      <th className="py-2.5 px-3 font-medium">일자</th>
-                      <th className="py-2.5 px-3 font-medium text-left">일일 총 입국객 추정치 (PAX) 변동 추이</th>
-                      <th className="py-2.5 px-3 font-medium">도착 편수</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {dailyFlights.map((item, idx) => (
-                      <tr key={idx} className="border-b border-slate-100 last:border-0 hover:bg-white transition-colors">
-                        <td className={`py-2.5 px-3 font-bold ${item.isWeekend ? 'text-amber-600' : 'text-slate-700'}`}>
-                          {item.date} {item.isWeekend && <span className="text-[9px] font-normal text-amber-500">(주말)</span>}
-                        </td>
-                        <td className="py-2.5 px-3">
-                          <div className="flex items-center gap-3">
-                            <span className="w-16 text-left font-black text-slate-800">{item.pax.toLocaleString()}명</span>
-                            <div className="flex-1 h-1.5 bg-slate-200 rounded-full overflow-hidden flex">
-                               {/* 최대 입국자 수(약 20만 명)를 기준으로 게이지 바 표시 */}
-                               <div className={`h-full ${item.isWeekend ? 'bg-amber-500' : 'bg-slate-400'}`} style={{ width: `${Math.min(100, (item.pax / 200000) * 100)}%` }}></div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="py-2.5 px-3 font-semibold text-slate-600">{item.flights.toLocaleString()}편</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-slate-50 p-3 rounded-lg border border-slate-200"><div className="text-slate-500 mb-1">일일 총 입국객 수</div><div className="text-base font-bold text-slate-800">{metrics.flightDetail.pax}</div></div>
+                <div className="bg-slate-50 p-3 rounded-lg border border-slate-200"><div className="text-slate-500 mb-1">착륙 항공편</div><div className="text-base font-bold text-slate-800">{metrics.flightDetail.flights}</div></div>
               </div>
-
             </div>
             <div className="pt-2 border-t border-slate-100 flex justify-end">
               <button onClick={() => setIsFlightModalOpen(false)} className="bg-slate-900 text-white px-4 py-2 rounded-lg font-bold text-xs">확인 완료</button>
@@ -442,14 +381,9 @@ export default function ParadisePricingDashboard() {
                       <div className="text-[11px] text-slate-500 mb-0.5 font-medium flex items-center justify-between"><span className="flex items-center gap-1"><Building2 size={12} className="text-amber-600"/> 인근 복합리조트 평균 요금</span><ExternalLink size={12} className="text-slate-400 group-hover:text-amber-600" /></div>
                       <div className="text-lg font-bold text-slate-800 mt-1">{metrics.compPrice.toLocaleString()}원</div>
                    </div>
-                   
-                   {/* [수정됨] 상단 공항 데이터 카드가 캘린더 선택 기간의 실제 일일 평균치로 바뀌어 표출됩니다. */}
                    <div onClick={() => setIsFlightModalOpen(true)} className="bg-white p-3.5 rounded-lg border border-slate-200 shadow-2xs cursor-pointer hover:border-amber-400 hover:bg-amber-50/20 transition-all group">
-                      <div className="text-[11px] text-slate-500 mb-0.5 font-medium flex items-center justify-between"><span className="flex items-center gap-1"><PlaneTakeoff size={12} className="text-amber-600"/> 일일 입국 수요 (선택기간 평균)</span><ExternalLink size={12} className="text-slate-400 group-hover:text-amber-600" /></div>
-                      <div className="text-lg font-bold text-slate-800 mt-1">
-                        {dailyFlights.length > 0 ? Math.round(dailyFlights.reduce((acc, cur) => acc + cur.pax, 0) / dailyFlights.length).toLocaleString() : 0}명
-                      </div>
-                      <div className="text-[10px] text-slate-400 mt-0.5 truncate">{metrics.flightIndex}</div>
+                      <div className="text-[11px] text-slate-500 mb-0.5 font-medium flex items-center justify-between"><span className="flex items-center gap-1"><PlaneTakeoff size={12} className="text-amber-600"/> 인천공항 입국 및 항공 수요</span><ExternalLink size={12} className="text-slate-400 group-hover:text-amber-600" /></div>
+                      <div className="text-xs font-bold text-slate-800 mt-1 truncate">{metrics.flightIndex}</div>
                    </div>
                 </div>
 
@@ -459,6 +393,8 @@ export default function ParadisePricingDashboard() {
                       <h2 className="text-xs font-bold text-slate-800 uppercase tracking-wide">객실 타입별 실시간 다이내믹 요금 히트맵</h2>
                     </div>
                   </div>
+
+                  {/* 💡 추가된 부분: 히트맵 색상 단계 직관적 설명 패널 */}
                   <div className="bg-slate-50 border border-slate-200 rounded-md p-2.5 mb-3 text-[10px] text-slate-600 grid grid-cols-4 gap-2 shrink-0 shadow-inner">
                     <div className="flex flex-col gap-1 border-r border-slate-200 pr-2">
                       <span className="font-bold text-red-800 flex items-center gap-1"><div className="w-2.5 h-2.5 bg-red-800 rounded-full"></div> 만실임박 (Dark Red)</span>
