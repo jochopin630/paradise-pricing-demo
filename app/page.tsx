@@ -9,23 +9,19 @@ import {
 } from 'lucide-react';
 
 export default function GladPricingDashboard() {
-  // 1. 프로퍼티(지점) 선택 상태 (여의도 / 마포 / 강남 코엑스센터)
   const [selectedProperty, setSelectedProperty] = useState<'yeouido' | 'mapo' | 'coex'>('yeouido');
 
-  // 2. 기본 상태 관리
   const [activeMenu, setActiveMenu] = useState('대시보드');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState('방금 전');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // 캘린더 모달 상태 및 동적 날짜 배열
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [startDate, setStartDate] = useState('2026-10-01');
   const [endDate, setEndDate] = useState('2026-10-14');
-  const [dateRangeLabel, setDateRangeLabel] = useState('2026.10.01 ~ 10.14 (가을 시즌/이벤트 관제)');
+  const [dateRangeLabel, setDateRangeLabel] = useState('2026.10.01 ~ 10.14');
   const [dates, setDates] = useState(['10.01', '10.02', '10.03', '10.04', '10.05', '10.06', '10.07', '10.08', '10.09', '10.10', '10.11', '10.12', '10.13', '10.14']);
 
-  // 날씨 및 외부 기상 환경 변수 상태
   const [weatherCondition, setWeatherCondition] = useState<'sunny' | 'festival_fine' | 'rain' | 'cold'>('festival_fine');
   const weatherPolicies = {
     sunny: { name: '☀️ 맑음/쾌청', factor: 1.03, desc: '야외 활동 증가로 레저 demand +3%' },
@@ -34,17 +30,14 @@ export default function GladPricingDashboard() {
     cold: { name: '❄️ 한파/악천후', factor: 0.95, desc: '도심 이동량 감소 demand -5%' }
   };
 
-  // 공항 실시간 연동 데이터 상태
   const [airportData, setAirportData] = useState({
-    pax: '102,450명/일',
-    flights: '610편착륙',
+    pax: '108,200명/일',
+    flights: '635편착륙',
     multiplier: 1.0
   });
 
-  // GLAD 멤버십 (Club GLAD) 회원 등급 상태 (Default: Gold 회원)
   const [memberTier, setMemberTier] = useState<'regular' | 'silver' | 'gold' | 'platinum' | 'black'>('gold');
 
-  // 고객 등급별 할인/혜택 정책 정의
   const [tierPolicies, setTierPolicies] = useState({
     regular: { name: '일반 고객 (Non-Member)', discountRate: 0, rewardMultiplier: 1.0, perk: '기본 포인트 1% 적립' },
     silver: { name: 'GLAD 실버 (Silver)', discountRate: -3, rewardMultiplier: 1.5, perk: '객실 요금 3% 우대 할인' },
@@ -53,63 +46,63 @@ export default function GladPricingDashboard() {
     black: { name: 'GLAD VIP 블랙 (Black Prestige)', discountRate: -18, rewardMultiplier: 5.0, perk: '글래드 스위트 업그레이드 + 18% 할인' }
   });
 
-  // 지표별 상세 모달 상태
   const [isRevenueModalOpen, setIsRevenueModalOpen] = useState(false);
   const [isOccModalOpen, setIsOccModalOpen] = useState(false);
   const [isFlightModalOpen, setIsFlightModalOpen] = useState(false);
   const [isCompetitorModalOpen, setIsCompetitorModalOpen] = useState(false);
 
-  // 3개 Property별 프로필, 객실 기준가, 특화 시나리오, Comp-Set 데이터 구조
+  // 서울 3개 지점 979객실 손익 모형 기반 프로필
   const propertyProfiles = {
     yeouido: {
       name: '글래드 여의도',
       subText: 'Yeouido Financial District & Riverview',
       totalRooms: '319실',
+      totalRoomsNum: 319,
       roomConfigs: [
-        { type: 'Standard Room', basePrice: 180000, minPrice: 140000, maxPrice: 320000 },
-        { type: 'Deluxe Room', basePrice: 240000, minPrice: 180000, maxPrice: 420000 },
-        { type: 'Corner Deluxe', basePrice: 290000, minPrice: 220000, maxPrice: 520000 },
-        { type: 'Glad Suite', basePrice: 480000, minPrice: 380000, maxPrice: 880000 }
+        { type: '스탠다드 (Standard)', basePrice: 250000, minPrice: 220000, maxPrice: 450000 },
+        { type: '디럭스 (Deluxe)', basePrice: 310000, minPrice: 270000, maxPrice: 550000 },
+        { type: '코너 디럭스 (Corner Deluxe)', basePrice: 380000, minPrice: 330000, maxPrice: 680000 },
+        { type: '글래드 스위트 (Glad Suite)', basePrice: 620000, minPrice: 520000, maxPrice: 1150000 }
       ],
       scenarios: {
         normal: {
-          id: 'normal', name: '여의도 금융가 평시 비즈니스 (Standard Week)', baseOcc: 76, compPrice: 240000,
+          id: 'normal', name: '여의도 10월 금융가 평시 비즈니스 (October Normal)', baseOcc: 78, compPrice: 340000,
           flightIndex: '안정적 (여의도/금융가 출장 & 도심 비즈니스 중심)',
           competitors: [
-            { name: '콘래드 서울 (Conrad)', avgPrice: '390,000원', occ: '76%', position: '여의도 IFC' },
-            { name: '페어몬트 앰배서더 서울', avgPrice: '420,000원', occ: '74%', position: '여의도 파크원' },
-            { name: '호텔 나루 서울 매갤러리', avgPrice: '310,000원', occ: '78%', position: '마포 한강변' },
-            { name: '켄싱턴호텔 여의도', avgPrice: '170,000원', occ: '80%', position: '여의도 순복음 상권' }
+            { name: '콘래드 서울 (Conrad)', avgPrice: '520,000원', occ: '82%', position: '여의도 IFC' },
+            { name: '페어몬트 앰배서더 서울', avgPrice: '580,000원', occ: '80%', position: '여의도 파크원' },
+            { name: '호텔 나루 서울 매갤러리', avgPrice: '410,000원', occ: '84%', position: '마포 한강변' },
+            { name: '켄싱턴호텔 여의도', avgPrice: '230,000원', occ: '85%', position: '여의도 순복음 상권' }
           ],
-          revenueBreakdown: { room: '32,500,000원', fnbDining: '14,200,000원', banquetMice: '8,300,000원' },
-          occBreakdown: { totalRooms: '319실', corpBlock: '50실 (금융법인)', memberHold: '30실 (VIP)', available: '239실', sold: '182실' },
-          baseRevenue: 55000000
+          revenueBreakdown: { room: 48500000, fnbDining: 17000000, banquetMice: 11000000 },
+          occBreakdown: { totalRooms: '319실', corpBlock: '55실 (금융법인)', memberHold: '30실 (VIP)', available: '234실', sold: '188실' },
+          baseRevenue: 76500000
         },
         fireworks: {
-          id: 'fireworks', name: '🎆 서울세계불꽃축제 & 한강 피크 (Fireworks Peak)', baseOcc: 98, compPrice: 480000,
-          flightIndex: '매우 높음 (한강 조망 및 한화 불꽃축제 관람 특수)',
+          id: 'fireworks', name: '🎆 서울세계불꽃축제 & 한강 피크 (Fireworks Surge)', baseOcc: 98, compPrice: 680000,
+          flightIndex: '최고조 (한강 조망 및 한화 불꽃축제 관람 특수)',
           competitors: [
-            { name: '콘래드 서울 (Conrad)', avgPrice: '680,000원', occ: '99%', position: '여의도 IFC' },
-            { name: '페어몬트 앰배서더 서울', avgPrice: '750,000원', occ: '98%', position: '여의도 파크원' },
-            { name: '호텔 나루 서울 매갤러리', avgPrice: '590,000원', occ: '97%', position: '마포 한강변' },
-            { name: '켄싱턴호텔 여의도', avgPrice: '320,000원', occ: '95%', position: '여의도 순복음 상권' }
+            { name: '콘래드 서울 (Conrad)', avgPrice: '1,080,000원', occ: '100%', position: '여의도 IFC' },
+            { name: '페어몬트 앰배서더 서울', avgPrice: '1,250,000원', occ: '99%', position: '여의도 파크원' },
+            { name: '호텔 나루 서울 매갤러리', avgPrice: '890,000원', occ: '98%', position: '마포 한강변' },
+            { name: '켄싱턴호텔 여의도', avgPrice: '480,000원', occ: '97%', position: '여의도 순복음 상권' }
           ],
-          revenueBreakdown: { room: '78,000,000원', fnbDining: '25,000,000원', banquetMice: '15,000,000원' },
-          occBreakdown: { totalRooms: '319실', corpBlock: '30실 (법인계약)', memberHold: '20실 (VIP)', available: '269실', sold: '264실' },
-          baseRevenue: 118000000
+          revenueBreakdown: { room: 112000000, fnbDining: 32000000, banquetMice: 20000000 },
+          occBreakdown: { totalRooms: '319실', corpBlock: '30실 (법인계약)', memberHold: '20실 (VIP)', available: '269실', sold: '266실' },
+          baseRevenue: 164000000
         },
         spring_flower: {
-          id: 'spring_flower', name: '🌸 여의도 봄꽃축제 & 윤중로 호캉스 (Spring Blossom)', baseOcc: 92, compPrice: 320000,
-          flightIndex: '높음 (윤중로 벚꽃길 관광객 & 주말 호캉스 유입)',
+          id: 'spring_flower', name: '🍂 윤중로 가을 억새 & 한강 피크닉 호캉스', baseOcc: 90, compPrice: 420000,
+          flightIndex: '높음 (윤중로 가을 산책로 & 주말 호캉스 유입)',
           competitors: [
-            { name: '콘래드 서울 (Conrad)', avgPrice: '480,000원', occ: '93%', position: '여의도 IFC' },
-            { name: '페어몬트 앰배서더 서울', avgPrice: '520,000원', occ: '91%', position: '여의도 파크원' },
-            { name: '호텔 나루 서울 매갤러리', avgPrice: '410,000원', occ: '90%', position: '마포 한강변' },
-            { name: '켄싱턴호텔 여의도', avgPrice: '240,000원', occ: '88%', position: '여의도 순복음 상권' }
+            { name: '콘래드 서울 (Conrad)', avgPrice: '620,000원', occ: '94%', position: '여의도 IFC' },
+            { name: '페어몬트 앰배서더 서울', avgPrice: '690,000원', occ: '92%', position: '여의도 파크원' },
+            { name: '호텔 나루 서울 매갤러리', avgPrice: '520,000원', occ: '91%', position: '마포 한강변' },
+            { name: '켄싱턴호텔 여의도', avgPrice: '310,000원', occ: '89%', position: '여의도 순복음 상권' }
           ],
-          revenueBreakdown: { room: '54,000,000원', fnbDining: '18,500,000원', banquetMice: '9,500,000원' },
-          occBreakdown: { totalRooms: '319실', corpBlock: '40실 (법인계약)', memberHold: '30실 (VIP)', available: '249실', sold: '229실' },
-          baseRevenue: 82000000
+          revenueBreakdown: { room: 71000000, fnbDining: 22000000, banquetMice: 12500000 },
+          occBreakdown: { totalRooms: '319실', corpBlock: '40실 (법인계약)', memberHold: '30실 (VIP)', available: '249실', sold: '232실' },
+          baseRevenue: 105500000
         }
       }
     },
@@ -117,51 +110,52 @@ export default function GladPricingDashboard() {
       name: '글래드 마포',
       subText: 'Gongdeok Station Hub & Business Transit',
       totalRooms: '378실',
+      totalRoomsNum: 378,
       roomConfigs: [
-        { type: 'Standard Room', basePrice: 160000, minPrice: 120000, maxPrice: 290000 },
-        { type: 'Deluxe Twin/Double', basePrice: 210000, minPrice: 160000, maxPrice: 380000 },
-        { type: 'Glad House', basePrice: 270000, minPrice: 200000, maxPrice: 480000 },
-        { type: 'Glad Suite', basePrice: 420000, minPrice: 320000, maxPrice: 750000 }
+        { type: '스탠다드 (Standard)', basePrice: 240000, minPrice: 210000, maxPrice: 390000 },
+        { type: '디럭스 (Deluxe)', basePrice: 300000, minPrice: 260000, maxPrice: 480000 },
+        { type: '글래드 하우스 (Glad House)', basePrice: 370000, minPrice: 320000, maxPrice: 590000 },
+        { type: '글래드 스위트 (Glad Suite)', basePrice: 580000, minPrice: 490000, maxPrice: 980000 }
       ],
       scenarios: {
         normal: {
-          id: 'normal', name: '공덕/마포 비즈니스 평시 (Gongdeok Biz Base)', baseOcc: 78, compPrice: 210000,
+          id: 'normal', name: '10월 공덕/마포 비즈니스 평시 (October Biz Base)', baseOcc: 80, compPrice: 310000,
           flightIndex: '안정적 (공항철도 연결 직장인 & 환승 비즈니스)',
           competitors: [
-            { name: '호텔 나루 서울 매갤러리', avgPrice: '310,000원', occ: '77%', position: '마포대교 남단' },
-            { name: '롯데시티호텔 마포', avgPrice: '200,000원', occ: '83%', position: '공덕역 직결' },
-            { name: '신라스테이 마포', avgPrice: '180,000원', occ: '81%', position: '공덕 비즈니스' },
-            { name: 'ROYNET Hotel Seoul Mapo', avgPrice: '195,000원', occ: '80%', position: '마포대로' }
+            { name: '호텔 나루 서울 매갤러리', avgPrice: '410,000원', occ: '81%', position: '마포대교 남단' },
+            { name: '롯데시티호텔 마포', avgPrice: '290,000원', occ: '86%', position: '공덕역 직결' },
+            { name: '신라스테이 마포', avgPrice: '275,000원', occ: '84%', position: '공덕 비즈니스' },
+            { name: 'ROYNET Hotel Seoul Mapo', avgPrice: '280,000원', occ: '83%', position: '마포대로' }
           ],
-          revenueBreakdown: { room: '38,000,000원', fnbDining: '12,000,000원', banquetMice: '6,000,000원' },
-          occBreakdown: { totalRooms: '378실', corpBlock: '65실 (IT/마케팅법인)', memberHold: '35실 (VIP)', available: '278실', sold: '217실' },
-          baseRevenue: 56000000
+          revenueBreakdown: { room: 49200000, fnbDining: 14000000, banquetMice: 8000000 },
+          occBreakdown: { totalRooms: '378실', corpBlock: '70실 (IT/마케팅법인)', memberHold: '35실 (VIP)', available: '273실', sold: '224실' },
+          baseRevenue: 71200000
         },
         food_fest: {
-          id: 'food_fest', name: '🍷 마포 음식문화축제 & 경의선 숲길 호캉스', baseOcc: 94, compPrice: 290000,
+          id: 'food_fest', name: '🍷 마포 음식문화축제 & 경의선 숲길 가을호캉스', baseOcc: 93, compPrice: 410000,
           flightIndex: '높음 (경의선 숲길 도보 관광 & 맛집 투어 호캉스)',
           competitors: [
-            { name: '호텔 나루 서울 매갤러리', avgPrice: '450,000원', occ: '95%', position: '마포대교 남단' },
-            { name: '롯데시티호텔 마포', avgPrice: '270,000원', occ: '92%', position: '공덕역 직결' },
-            { name: '신라스테이 마포', avgPrice: '250,000원', occ: '90%', position: '공덕 비즈니스' },
-            { name: 'ROYNET Hotel Seoul Mapo', avgPrice: '260,000원', occ: '89%', position: '마포대로' }
+            { name: '호텔 나루 서울 매갤러리', avgPrice: '580,000원', occ: '96%', position: '마포대교 남단' },
+            { name: '롯데시티호텔 마포', avgPrice: '380,000원', occ: '94%', position: '공덕역 직결' },
+            { name: '신라스테이 마포', avgPrice: '350,000원', occ: '92%', position: '공덕 비즈니스' },
+            { name: 'ROYNET Hotel Seoul Mapo', avgPrice: '360,000원', occ: '90%', position: '마포대로' }
           ],
-          revenueBreakdown: { room: '58,000,000원', fnbDining: '21,000,000원', banquetMice: '8,000,000원' },
-          occBreakdown: { totalRooms: '378실', corpBlock: '40실 (법인계약)', memberHold: '30실 (VIP)', available: '308실', sold: '290실' },
-          baseRevenue: 87000000
+          revenueBreakdown: { room: 74000000, fnbDining: 24000000, banquetMice: 10500000 },
+          occBreakdown: { totalRooms: '378실', corpBlock: '40실 (법인계약)', memberHold: '30실 (VIP)', available: '308실', sold: '293실' },
+          baseRevenue: 108500000
         },
         hongdae_transit: {
-          id: 'hongdae_transit', name: '✈️ 공항철도 인바운드 & 홍대 상권 연계 시즌', baseOcc: 89, compPrice: 260000,
+          id: 'hongdae_transit', name: '✈️ 10월 공항철도 외국인 인바운드 피크', baseOcc: 88, compPrice: 360000,
           flightIndex: '매우 높음 (인천/김포 공항철도 이용 외국인 FIT 집중)',
           competitors: [
-            { name: '호텔 나루 서울 매갤러리', avgPrice: '380,000원', occ: '88%', position: '마포대교 남단' },
-            { name: '롯데시티호텔 마포', avgPrice: '240,000원', occ: '91%', position: '공덕역 직결' },
-            { name: '신라스테이 마포', avgPrice: '220,000원', occ: '89%', position: '공덕 비즈니스' },
-            { name: 'L7 홍대', avgPrice: '270,000원', occ: '93%', position: '홍대입구역' }
+            { name: '호텔 나루 서울 매갤러리', avgPrice: '490,000원', occ: '90%', position: '마포대교 남단' },
+            { name: '롯데시티호텔 마포', avgPrice: '340,000원', occ: '93%', position: '공덕역 직결' },
+            { name: '신라스테이 마포', avgPrice: '310,000원', occ: '91%', position: '공덕 비즈니스' },
+            { name: 'L7 홍대', avgPrice: '370,000원', occ: '95%', position: '홍대입구역' }
           ],
-          revenueBreakdown: { room: '51,000,000원', fnbDining: '15,000,000원', banquetMice: '7,000,000원' },
-          occBreakdown: { totalRooms: '378실', corpBlock: '50실 (법인계약)', memberHold: '25실 (VIP)', available: '303실', sold: '270실' },
-          baseRevenue: 73000000
+          revenueBreakdown: { room: 64500000, fnbDining: 18500000, banquetMice: 9000000 },
+          occBreakdown: { totalRooms: '378실', corpBlock: '50실 (법인계약)', memberHold: '25실 (VIP)', available: '303실', sold: '276실' },
+          baseRevenue: 92000000
         }
       }
     },
@@ -169,51 +163,52 @@ export default function GladPricingDashboard() {
       name: '글래드 강남 코엑스센터',
       subText: 'Teheran-ro Tech & COEX MICE Hub',
       totalRooms: '282실',
+      totalRoomsNum: 282,
       roomConfigs: [
-        { type: 'Standard Double', basePrice: 190000, minPrice: 150000, maxPrice: 350000 },
-        { type: 'Superior Twin', basePrice: 250000, minPrice: 190000, maxPrice: 450000 },
-        { type: 'Glad Smart Room', basePrice: 310000, minPrice: 240000, maxPrice: 580000 },
-        { type: 'Coex Suite', basePrice: 520000, minPrice: 400000, maxPrice: 950000 }
+        { type: '스탠다드 (Standard)', basePrice: 280000, minPrice: 240000, maxPrice: 420000 },
+        { type: '슈페리어 (Superior)', basePrice: 350000, minPrice: 300000, maxPrice: 520000 },
+        { type: '글래드 점보/스마트 (Jumbo)', basePrice: 420000, minPrice: 360000, maxPrice: 630000 },
+        { type: '코엑스 스위트 (Coex Suite)', basePrice: 680000, minPrice: 580000, maxPrice: 1250000 }
       ],
       scenarios: {
         normal: {
-          id: 'normal', name: '테헤란로 IT/금융 비즈니스 평시 (Tech Biz Base)', baseOcc: 81, compPrice: 270000,
+          id: 'normal', name: '10월 테헤란로 IT/금융 비즈니스 평시 (Oct Tech Biz)', baseOcc: 82, compPrice: 380000,
           flightIndex: '안정적 (삼성역/테헤란로 IT 바이어 & 해외 출장자)',
           competitors: [
-            { name: '그랜드 인터컨티넨탈 파르나스', avgPrice: '460,000원', occ: '82%', position: '삼성역 직결' },
-            { name: '파크 하얏트 서울', avgPrice: '620,000원', occ: '79%', position: '삼성역 교차로' },
-            { name: '신라스테이 삼성', avgPrice: '240,000원', occ: '85%', position: '삼성역 맞은편' },
-            { name: '오크우드 프리미어 코엑스', avgPrice: '410,000원', occ: '80%', position: '코엑스 단지' }
+            { name: '그랜드 인터컨티넨탈 파르나스', avgPrice: '620,000원', occ: '85%', position: '삼성역 직결' },
+            { name: '파크 하얏트 서울', avgPrice: '820,000원', occ: '82%', position: '삼성역 교차로' },
+            { name: '신라스테이 삼성', avgPrice: '340,000원', occ: '88%', position: '삼성역 맞은편' },
+            { name: '오크우드 프리미어 코엑스', avgPrice: '560,000원', occ: '83%', position: '코엑스 단지' }
           ],
-          revenueBreakdown: { room: '41,000,000원', fnbDining: '11,000,000원', banquetMice: '9,000,000원' },
-          occBreakdown: { totalRooms: '282실', corpBlock: '70실 (테헤란로 IT)', memberHold: '25실 (VIP)', available: '187실', sold: '151실' },
-          baseRevenue: 61000000
+          revenueBreakdown: { room: 50800000, fnbDining: 12000000, banquetMice: 11000000 },
+          occBreakdown: { totalRooms: '282실', corpBlock: '75실 (테헤란로 IT)', memberHold: '25실 (VIP)', available: '182실', sold: '155실' },
+          baseRevenue: 73800000
         },
         mice_peak: {
-          id: 'mice_peak', name: '🏢 코엑스 대규모 MICE & 국제컨벤션 피크', baseOcc: 97, compPrice: 410000,
+          id: 'mice_peak', name: '🏢 10월 코엑스 대규모 MICE & 엑스포 피크', baseOcc: 96, compPrice: 580000,
           flightIndex: '매우 높음 (글로벌 바이어, 학회 참석자 & IT 엑스포 집중)',
           competitors: [
-            { name: '그랜드 인터컨티넨탈 파르나스', avgPrice: '690,000원', occ: '98%', position: '삼성역 직결' },
-            { name: '파크 하얏트 서울', avgPrice: '850,000원', occ: '96%', position: '삼성역 교차로' },
-            { name: '신라스테이 삼성', avgPrice: '380,000원', occ: '97%', position: '삼성역 맞은편' },
-            { name: '오크우드 프리미어 코엑스', avgPrice: '580,000원', occ: '95%', position: '코엑스 단지' }
+            { name: '그랜드 인터컨티넨탈 파르나스', avgPrice: '920,000원', occ: '99%', position: '삼성역 직결' },
+            { name: '파크 하얏트 서울', avgPrice: '1,150,000원', occ: '97%', position: '삼성역 교차로' },
+            { name: '신라스테이 삼성', avgPrice: '490,000원', occ: '98%', position: '삼성역 맞은편' },
+            { name: '오크우드 프리미어 코엑스', avgPrice: '780,000원', occ: '96%', position: '코엑스 단지' }
           ],
-          revenueBreakdown: { room: '74,000,000원', fnbDining: '19,000,000원', banquetMice: '22,000,000원' },
-          occBreakdown: { totalRooms: '282실', corpBlock: '90실 (MICE 바이어)', memberHold: '20실 (VIP)', available: '172실', sold: '167실' },
-          baseRevenue: 115000000
+          revenueBreakdown: { room: 96000000, fnbDining: 22000000, banquetMice: 26000000 },
+          occBreakdown: { totalRooms: '282실', corpBlock: '95실 (MICE 바이어)', memberHold: '20실 (VIP)', available: '167실', sold: '164실' },
+          baseRevenue: 144000000
         },
         kpop_concert: {
-          id: 'kpop_concert', name: '🎤 영동대로 K-POP 페스티벌 & 대형 공연 시즌', baseOcc: 95, compPrice: 360000,
+          id: 'kpop_concert', name: '🎤 영동대로 K-POP 페스티벌 & 강남 대형 공연', baseOcc: 92, compPrice: 490000,
           flightIndex: '높음 (글로벌 한류 팬덤 & 주말 강남 도심 호캉스 유입)',
           competitors: [
-            { name: '그랜드 인터컨티넨탈 파르나스', avgPrice: '580,000원', occ: '96%', position: '삼성역 직결' },
-            { name: '파크 하얏트 서울', avgPrice: '720,000원', occ: '94%', position: '삼성역 교차로' },
-            { name: '신라스테이 삼성', avgPrice: '330,000원', occ: '95%', position: '삼성역 맞은편' },
-            { name: '오크우드 프리미어 코엑스', avgPrice: '490,000원', occ: '92%', position: '코엑스 단지' }
+            { name: '그랜드 인터컨티넨탈 파르나스', avgPrice: '780,000원', occ: '97%', position: '삼성역 직결' },
+            { name: '파크 하얏트 서울', avgPrice: '980,000원', occ: '95%', position: '삼성역 교차로' },
+            { name: '신라스테이 삼성', avgPrice: '430,000원', occ: '96%', position: '삼성역 맞은편' },
+            { name: '오크우드 프리미어 코엑스', avgPrice: '670,000원', occ: '93%', position: '코엑스 단지' }
           ],
-          revenueBreakdown: { room: '63,000,000원', fnbDining: '16,000,000원', banquetMice: '11,000,000원' },
-          occBreakdown: { totalRooms: '282실', corpBlock: '40실 (법인계약)', memberHold: '30실 (VIP)', available: '212실', sold: '201실' },
-          baseRevenue: 90000000
+          revenueBreakdown: { room: 78000000, fnbDining: 19000000, banquetMice: 14000000 },
+          occBreakdown: { totalRooms: '282실', corpBlock: '40실 (법인계약)', memberHold: '30실 (VIP)', available: '212실', sold: '203실' },
+          baseRevenue: 111000000
         }
       }
     }
@@ -224,20 +219,17 @@ export default function GladPricingDashboard() {
   const [currentScenario, setCurrentScenario] = useState('normal');
   const [roomConfigs, setRoomConfigs] = useState(activePropertyData.roomConfigs);
 
-  // 다이내믹 프라이싱 설정 및 민감도 상태
   const [minDrop, setMinDrop] = useState(-10);
   const [maxRise, setMaxRise] = useState(30);
   const [sensitivity, setSensitivity] = useState<'Low' | 'Mid' | 'High'>('High');
 
-  // AI 룰 설정 상태
   const [aiRules, setAiRules] = useState({
     autoPriceSync: true, corpBlockProtection: true, competitorUnderCutGuard: true, weekendSurgeBoost: true
   });
 
-  const [metrics, setMetrics] = useState(activePropertyData.scenarios['normal']);
+  const [metrics, setMetrics] = useState<any>(activePropertyData.scenarios['normal']);
   const [roomRates, setRoomRates] = useState<any[]>([]);
 
-  // 선택된 프로퍼티 변경 시 객실 및 시나리오 갱신
   useEffect(() => {
     const defaultScen = 'normal';
     setCurrentScenario(defaultScen);
@@ -245,25 +237,30 @@ export default function GladPricingDashboard() {
     setMetrics(activePropertyData.scenarios[defaultScen as keyof typeof activePropertyData.scenarios]);
   }, [selectedProperty]);
 
-  // 특정 날짜가 주말(금, 토)인지 판별하는 함수
-  const checkWeekend = (dateStr: string) => {
+  // 요일 및 공휴일 식별 함수
+  const getDayDetails = (dateStr: string) => {
     const year = startDate.split('-')[0] || new Date().getFullYear().toString();
     const [m, d] = dateStr.split('.');
-    const dayOfWeek = new Date(`${year}-${m}-${d}`).getDay();
-    return dayOfWeek === 5 || dayOfWeek === 6;
+    const dateObj = new Date(`${year}-${m}-${d}`);
+    const dayOfWeek = dateObj.getDay();
+    const isWeekend = dayOfWeek === 5 || dayOfWeek === 6; // 금, 토
+    const isSunday = dayOfWeek === 0;
+    
+    // 10월 주요 공휴일/연휴 피크 서지 체크
+    const isHolidayPeak = dateStr === '10.01' || dateStr === '10.03' || dateStr === '10.09';
+
+    return { dayOfWeek, isWeekend, isSunday, isHolidayPeak };
   };
 
-  // 💡 밝은 라이트 테마 맞춤형 요금 수준별 히트맵 셀 색상 (선명하고 고급스러운 톤)
   const getBgColor = (status: string) => {
     switch(status) {
-      case 'dark-red': return 'bg-rose-600 text-white font-bold border border-rose-700 shadow-sm';
-      case 'high': return 'bg-amber-500 text-slate-950 font-bold border border-amber-600 shadow-sm';
-      case 'lower': return 'bg-emerald-600 text-white font-bold border border-emerald-700 shadow-sm';
+      case 'dark-red': return 'bg-rose-600 text-white font-bold border border-rose-700 shadow-xs';
+      case 'high': return 'bg-amber-500 text-slate-950 font-bold border border-amber-600 shadow-xs';
+      case 'lower': return 'bg-emerald-600 text-white font-bold border border-emerald-700 shadow-xs';
       default: return 'bg-white text-slate-800 border border-slate-200 hover:bg-slate-50';
     }
   };
 
-  // 공항 API 연동 비동기 호출 (가상 API)
   const fetchAirportTraffic = useCallback(async (dateStr: string) => {
     try {
       const response = await fetch(`/api/airport-traffic?date=${dateStr}`);
@@ -280,7 +277,6 @@ export default function GladPricingDashboard() {
     }
   }, []);
 
-  // AI 최적화 연산 엔진
   const applyAI = useCallback(() => {
     setIsAnalyzing(true);
     setTimeout(() => {
@@ -291,15 +287,37 @@ export default function GladPricingDashboard() {
       const weatherMultiplier = weatherPolicies[weatherCondition].factor;
       const currentTierDiscount = tierPolicies[memberTier].discountRate;
 
-      // 전사 매출 보정 연산
-      const adjustedRevenue = scenarioData.baseRevenue * airportData.multiplier * weatherMultiplier * (1 + (maxRise * 0.004 * sensitivityMultiplier));
-      setMetrics({ ...scenarioData, baseRevenue: adjustedRevenue });
+      // 💡 1. 날짜별 실질 가동률(Daily Dynamic OCC) 및 요금 계산 파이프라인
+      const dailyOccList: number[] = [];
+      const weekdayOccList: number[] = [];
+      const weekendOccList: number[] = [];
 
       const updatedRates = roomConfigs.map(room => {
-        const newRates = dates.map(dateStr => {
-          const isWeekend = checkWeekend(dateStr); 
+        const newRates = dates.map((dateStr, dIdx) => {
+          const { isWeekend, isSunday, isHolidayPeak } = getDayDetails(dateStr);
           
-          let demandFactor = (scenarioData.baseOcc / 100) * weatherMultiplier + (isWeekend ? 0.15 : 0) + ((airportData.multiplier - 1.0) * 0.25);
+          // 실증 가동률(OCC) 동적 산정 모델
+          let baseOccVal = scenarioData.baseOcc * weatherMultiplier;
+          
+          if (isWeekend) baseOccVal += 14;           // 금/토 주말 호캉스 수요 가산 (+14%)
+          else if (isSunday) baseOccVal -= 6;         // 일요일 체크아웃 감소 (-6%)
+          
+          if (isHolidayPeak) baseOccVal += 12;        // 10월 연휴/공휴일 서지 가산 (+12%)
+
+          // 공항 트래픽 계수 영향
+          baseOccVal += (airportData.multiplier - 1.0) * 15;
+
+          const finalDailyOcc = Math.min(99, Math.max(50, Math.round(baseOccVal)));
+
+          // 첫 번째 객실 루프 시에만 날짜별 가동률 집계에 저장
+          if (dIdx === 0 || room.type.includes('스탠다드')) {
+            dailyOccList.push(finalDailyOcc);
+            if (isWeekend || isHolidayPeak) weekendOccList.push(finalDailyOcc);
+            else weekdayOccList.push(finalDailyOcc);
+          }
+
+          // demandFactor 계산 (가동률 지수 기준)
+          let demandFactor = (finalDailyOcc / 100);
           
           let priceMultiplier = 1;
           if (demandFactor > 0.85) {
@@ -315,13 +333,55 @@ export default function GladPricingDashboard() {
           if (finalPrice < room.minPrice) finalPrice = room.minPrice;
           
           let status = 'standard';
-          if (demandFactor > 1.05) status = 'dark-red';
-          else if (demandFactor > 0.88) status = 'high';
-          else if (demandFactor < 0.65) status = 'lower';
+          if (finalDailyOcc >= 94) status = 'dark-red';
+          else if (finalDailyOcc >= 86) status = 'high';
+          else if (finalDailyOcc < 68) status = 'lower';
 
-          return { date: dateStr, price: finalPrice.toLocaleString() + '원', status, rate: Math.min(99, Math.round(demandFactor * 100)) + '%' };
+          return { 
+            date: dateStr, 
+            price: finalPrice.toLocaleString() + '원', 
+            status, 
+            rate: finalDailyOcc + '%' 
+          };
         });
-        return { type: room.type, basePrice: room.basePrice, rates: newRates };
+        return { type: room.type, basePrice: room.basePrice, minPrice: room.minPrice, maxPrice: room.maxPrice, rates: newRates };
+      });
+
+      // 💡 2. 선택 기간 전체 동적 가동률(Period Average OCC) 평균 연산
+      const periodAvgOcc = dailyOccList.length > 0 
+        ? Math.round(dailyOccList.reduce((a, b) => a + b, 0) / dailyOccList.length) 
+        : scenarioData.baseOcc;
+
+      const weekdayAvgOcc = weekdayOccList.length > 0 
+        ? Math.round(weekdayOccList.reduce((a, b) => a + b, 0) / weekdayOccList.length) 
+        : periodAvgOcc - 5;
+
+      const weekendAvgOcc = weekendOccList.length > 0 
+        ? Math.round(weekendOccList.reduce((a, b) => a + b, 0) / weekendOccList.length) 
+        : Math.min(99, periodAvgOcc + 10);
+
+      // 💡 3. 매출 집계 연산
+      const dailyAdjustedRevenue = scenarioData.baseRevenue * (periodAvgOcc / scenarioData.baseOcc) * (1 + (maxRise * 0.003 * sensitivityMultiplier));
+      const selectedDaysCount = dates.length || 1;
+      const periodRevenue = dailyAdjustedRevenue * selectedDaysCount;
+      const monthlyRevenue = dailyAdjustedRevenue * 31;
+
+      const totalSoldRoomsPeriod = Math.round((activePropertyData.totalRoomsNum * (periodAvgOcc / 100)) * selectedDaysCount);
+
+      setMetrics({ 
+        ...scenarioData, 
+        baseRevenue: dailyAdjustedRevenue, 
+        periodRevenue: periodRevenue,
+        monthlyRevenue: monthlyRevenue,
+        periodAvgOcc: periodAvgOcc,       // 👈 선택 기간 실질 가동률
+        weekdayAvgOcc: weekdayAvgOcc,   // 👈 평일 평균 가동률
+        weekendAvgOcc: weekendAvgOcc,   // 👈 주말/피크 평균 가동률
+        totalSoldRoomsPeriod: totalSoldRoomsPeriod,
+        scaledBreakdown: {
+          room: scenarioData.revenueBreakdown.room * selectedDaysCount * (periodAvgOcc / scenarioData.baseOcc),
+          fnbDining: scenarioData.revenueBreakdown.fnbDining * selectedDaysCount * weatherMultiplier,
+          banquetMice: scenarioData.revenueBreakdown.banquetMice * selectedDaysCount
+        }
       });
 
       setRoomRates(updatedRates);
@@ -344,7 +404,7 @@ export default function GladPricingDashboard() {
     let current = new Date(startDate);
     const stop = new Date(endDate);
     
-    while (current <= stop && newDates.length < 14) {
+    while (current <= stop && newDates.length < 31) {
       const m = String(current.getMonth() + 1).padStart(2, '0');
       const d = String(current.getDate()).padStart(2, '0');
       newDates.push(`${m}.${d}`);
@@ -354,7 +414,7 @@ export default function GladPricingDashboard() {
     if(newDates.length === 0) newDates.push('10.01');
     
     setDates(newDates);
-    setDateRangeLabel(`${startDate} ~ ${endDate} (선택 관제 기간)`);
+    setDateRangeLabel(`${startDate} ~ ${endDate}`);
     setIsCalendarOpen(false);
   };
 
@@ -375,7 +435,6 @@ export default function GladPricingDashboard() {
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-slate-100 text-slate-800 font-sans text-xs select-none relative">
       
-      {/* 알림 토스트 */}
       {toastMessage && (
         <div className="absolute top-16 right-6 bg-slate-900 text-amber-400 px-4 py-2.5 rounded-lg shadow-2xl z-50 flex items-center gap-2 animate-in fade-in">
           <CheckCircle2 size={16} className="text-amber-400" />
@@ -383,24 +442,45 @@ export default function GladPricingDashboard() {
         </div>
       )}
 
-      {/* 1. 매출 상세 모달 */}
+      {/* 1. 매출 모달 */}
       {isRevenueModalOpen && (
         <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-xs z-50 flex items-center justify-center">
-          <div className="bg-white rounded-xl shadow-2xl border border-slate-200 w-[500px] p-6 flex flex-col gap-4 animate-in zoom-in-95">
+          <div className="bg-white rounded-xl shadow-2xl border border-slate-200 w-[520px] p-6 flex flex-col gap-4 animate-in zoom-in-95">
             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-              <h3 className="font-bold text-slate-900 flex items-center gap-2 text-sm"><DollarSign size={18} className="text-amber-600"/> [{activePropertyData.name}] 전사 예상 매출 브레이크다운</h3>
+              <h3 className="font-bold text-slate-900 flex items-center gap-2 text-sm"><DollarSign size={18} className="text-amber-600"/> [{activePropertyData.name}] 선택 기간 예상 매출 상세 분석</h3>
               <button onClick={() => setIsRevenueModalOpen(false)} className="text-slate-400 hover:text-slate-700"><X size={18} /></button>
             </div>
             <div className="space-y-3 text-xs">
               <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-amber-950 flex justify-between items-center">
-                <div><div className="font-bold text-slate-900">총 예상 매출</div><div className="text-[10px] text-slate-500">날씨({weatherPolicies[weatherCondition].name}) & 멤버십({tierPolicies[memberTier].name}) 반영</div></div>
-                <div className="text-lg font-black text-amber-600">{Math.round(metrics.baseRevenue).toLocaleString()}원</div>
+                <div>
+                  <div className="font-bold text-slate-900">선택 관제 기간({dates.length}일간) 총 예상 매출</div>
+                  <div className="text-[10px] text-slate-500">날씨({weatherPolicies[weatherCondition].name}) & 평균가동률({metrics.periodAvgOcc}%) 연동</div>
+                </div>
+                <div className="text-right">
+                  <div className="text-lg font-black text-amber-600">{Math.round(metrics.periodRevenue || 0).toLocaleString()}원</div>
+                  <div className="text-[10px] text-slate-500 font-normal">일평균 약 {Math.round(metrics.baseRevenue || 0).toLocaleString()}원</div>
+                </div>
               </div>
-              <div className="font-bold text-slate-700 mt-2">부문별 매출 기여도</div>
+              
+              <div className="flex justify-between items-center bg-slate-50 border border-slate-200 p-2.5 rounded-lg">
+                <span className="text-slate-600 font-medium">10월 한 달(31일 기준) 예상 매출 추산</span>
+                <span className="font-bold text-slate-900 text-sm">{Math.round(metrics.monthlyRevenue || 0).toLocaleString()}원</span>
+              </div>
+
+              <div className="font-bold text-slate-700 mt-2">선택 기간({dates.length}일) 부문별 매출 기여도</div>
               <div className="space-y-2">
-                <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 flex justify-between items-center"><span className="text-slate-600">객실 숙박 매출 (Room Revenue)</span><span className="font-bold text-slate-900">{metrics.revenueBreakdown.room}</span></div>
-                <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 flex justify-between items-center"><span className="text-slate-600">다이닝 및 F&B (Greets / Bar)</span><span className="font-bold text-slate-900">{metrics.revenueBreakdown.fnbDining}</span></div>
-                <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 flex justify-between items-center"><span className="text-slate-600">연회 및 MICE (Banquet & Event)</span><span className="font-bold text-slate-900">{metrics.revenueBreakdown.banquetMice}</span></div>
+                <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 flex justify-between items-center">
+                  <span className="text-slate-600">객실 숙박 매출 (Room Revenue)</span>
+                  <span className="font-bold text-slate-900">{Math.round(metrics.scaledBreakdown?.room || 0).toLocaleString()}원</span>
+                </div>
+                <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 flex justify-between items-center">
+                  <span className="text-slate-600">다이닝 및 F&B (Greets / Bar)</span>
+                  <span className="font-bold text-slate-900">{Math.round(metrics.scaledBreakdown?.fnbDining || 0).toLocaleString()}원</span>
+                </div>
+                <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 flex justify-between items-center">
+                  <span className="text-slate-600">연회 및 MICE (Banquet & Event)</span>
+                  <span className="font-bold text-slate-900">{Math.round(metrics.scaledBreakdown?.banquetMice || 0).toLocaleString()}원</span>
+                </div>
               </div>
             </div>
             <div className="pt-2 border-t border-slate-100 flex justify-end">
@@ -410,24 +490,45 @@ export default function GladPricingDashboard() {
         </div>
       )}
 
-      {/* 2. 점유율 모달 */}
+      {/* 2. 동적 점유율(OCC) 상세 분석 모달 */}
       {isOccModalOpen && (
         <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-xs z-50 flex items-center justify-center">
-          <div className="bg-white rounded-xl shadow-2xl border border-slate-200 w-[500px] p-6 flex flex-col gap-4 animate-in zoom-in-95">
+          <div className="bg-white rounded-xl shadow-2xl border border-slate-200 w-[520px] p-6 flex flex-col gap-4 animate-in zoom-in-95">
             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-              <h3 className="font-bold text-slate-900 flex items-center gap-2 text-sm"><PieChart size={18} className="text-amber-600"/> 실질 점유율 & 객실 블록 관리 현황</h3>
+              <h3 className="font-bold text-slate-900 flex items-center gap-2 text-sm"><PieChart size={18} className="text-amber-600"/> [{activePropertyData.name}] 선택 기간 실질 점유율(OCC) 동적 분석</h3>
               <button onClick={() => setIsOccModalOpen(false)} className="text-slate-400 hover:text-slate-700"><X size={18} /></button>
             </div>
             <div className="space-y-3 text-xs">
-              <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 flex justify-between items-center">
-                <div><div className="font-bold text-slate-900">실질 가동률 (Effective OCC)</div><div className="text-[10px] text-slate-500">법인 및 VIP 홀딩 제외 일반 판매 기준</div></div>
-                <div className="text-lg font-black text-amber-600">{metrics.baseOcc}%</div>
+              <div className="bg-slate-50 border border-slate-200 rounded-lg p-3.5 flex justify-between items-center">
+                <div>
+                  <div className="font-bold text-slate-900">선택 관제 기간({dates.length}일간) 실질 평균 가동률</div>
+                  <div className="text-[10px] text-slate-500">주말/공휴일 피크 및 평시 비즈니스 분산 반영</div>
+                </div>
+                <div className="text-right">
+                  <div className="text-2xl font-black text-amber-600">{metrics.periodAvgOcc || metrics.baseOcc}%</div>
+                  <div className="text-[10px] text-emerald-600 font-semibold">총 {metrics.totalSoldRoomsPeriod?.toLocaleString()} 객실 판매 추정</div>
+                </div>
               </div>
+              
               <div className="grid grid-cols-2 gap-3">
-                <div className="bg-white border border-slate-200 p-3 rounded-lg"><div className="text-slate-500 mb-1">총 객실 수</div><div className="text-sm font-bold text-slate-800">{metrics.occBreakdown.totalRooms}</div></div>
-                <div className="bg-white border border-slate-200 p-3 rounded-lg"><div className="text-slate-500 mb-1">법인 계약 블록</div><div className="text-sm font-bold text-amber-600">{metrics.occBreakdown.corpBlock}</div></div>
-                <div className="bg-white border border-slate-200 p-3 rounded-lg"><div className="text-slate-500 mb-1">멤버십 VIP 홀딩</div><div className="text-sm font-bold text-sky-600">{metrics.occBreakdown.memberHold}</div></div>
-                <div className="bg-white border border-slate-200 p-3 rounded-lg"><div className="text-slate-500 mb-1">일반 가용 객실</div><div className="text-sm font-bold text-emerald-600">{metrics.occBreakdown.available} 중 {metrics.occBreakdown.sold} 판매</div></div>
+                <div className="bg-white border border-slate-200 p-3 rounded-lg">
+                  <div className="text-slate-500 mb-1">평일 평균 가동률 (Weekday)</div>
+                  <div className="text-base font-bold text-slate-800">{metrics.weekdayAvgOcc}%</div>
+                  <div className="text-[9.5px] text-slate-400 mt-0.5">금융/비즈니스 출장 중심</div>
+                </div>
+                <div className="bg-white border border-slate-200 p-3 rounded-lg">
+                  <div className="text-slate-500 mb-1">주말/공휴일 피크 (Weekend/Peak)</div>
+                  <div className="text-base font-bold text-amber-600">{metrics.weekendAvgOcc}%</div>
+                  <div className="text-[9.5px] text-amber-700/80 mt-0.5">가을 호캉스 & 연휴 서지</div>
+                </div>
+                <div className="bg-white border border-slate-200 p-3 rounded-lg">
+                  <div className="text-slate-500 mb-1">지점 총 객실 규모</div>
+                  <div className="text-sm font-bold text-slate-800">{activePropertyData.totalRooms}</div>
+                </div>
+                <div className="bg-white border border-slate-200 p-3 rounded-lg">
+                  <div className="text-slate-500 mb-1">법인/VIP 고정 블록</div>
+                  <div className="text-sm font-bold text-slate-700">{metrics.occBreakdown.corpBlock} + {metrics.occBreakdown.memberHold}</div>
+                </div>
               </div>
             </div>
             <div className="pt-2 border-t border-slate-100 flex justify-end">
@@ -442,7 +543,7 @@ export default function GladPricingDashboard() {
         <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-xs z-50 flex items-center justify-center">
           <div className="bg-white rounded-xl shadow-xl border border-slate-200 w-[380px] p-5 flex flex-col gap-4 animate-in zoom-in-95">
             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-              <h3 className="font-bold text-slate-900 flex items-center gap-2 text-sm"><CalendarDays size={16} className="text-amber-600"/> 관제 기간 설정</h3>
+              <h3 className="font-bold text-slate-900 flex items-center gap-2 text-sm"><CalendarDays size={16} className="text-amber-600"/> 10월 관제 기간 설정</h3>
               <button onClick={() => setIsCalendarOpen(false)} className="text-slate-400 hover:text-slate-700"><X size={18} /></button>
             </div>
             <div className="space-y-3">
@@ -457,7 +558,7 @@ export default function GladPricingDashboard() {
         </div>
       )}
 
-      {/* 4. 공항 실시간 연동 모달 */}
+      {/* 4. 공항 모달 */}
       {isFlightModalOpen && (
         <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-xs z-50 flex items-center justify-center">
           <div className="bg-white rounded-xl shadow-2xl border border-slate-200 w-[480px] p-6 flex flex-col gap-4 animate-in zoom-in-95">
@@ -468,7 +569,7 @@ export default function GladPricingDashboard() {
             <div className="space-y-3 text-xs">
               <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-amber-950">
                 <div className="font-bold text-amber-700 mb-1">인천/김포 공항 API 연동: 정상 연동 중</div>
-                <div>글로벌 출장자 및 외국인 관광객 유입량이 [{activePropertyData.name}] 요금 추천 모델에 즉시 반영됩니다.</div>
+                <div>가격과 공항 입국객 트래픽 계수가 실시간 연동되어 프라이싱 추천을 업데이트합니다.</div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="bg-slate-50 p-3 rounded-lg border border-slate-200"><div className="text-slate-500 mb-1">일일 입국객 수</div><div className="text-base font-bold text-slate-900">{airportData.pax}</div></div>
@@ -487,17 +588,17 @@ export default function GladPricingDashboard() {
         <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-xs z-50 flex items-center justify-center">
           <div className="bg-white rounded-xl shadow-2xl border border-slate-200 w-[520px] p-6 flex flex-col gap-4 animate-in zoom-in-95">
             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-              <h3 className="font-bold text-slate-900 flex items-center gap-2 text-sm"><Building2 size={18} className="text-amber-600"/> [{activePropertyData.name}] 권역 Comp-Set 상세 분석</h3>
+              <h3 className="font-bold text-slate-900 flex items-center gap-2 text-sm"><Building2 size={18} className="text-amber-600"/> [{activePropertyData.name}] 10월 Comp-Set 분석</h3>
               <button onClick={() => setIsCompetitorModalOpen(false)} className="text-slate-400 hover:text-slate-700"><X size={18} /></button>
             </div>
             <div className="space-y-3 text-xs">
               <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-slate-800 flex justify-between items-center">
-                <div><div className="font-bold text-slate-900">당사 권장 요금 ({tierPolicies[memberTier].name})</div></div>
+                <div><div className="font-bold text-slate-900">당사 추천가 ({tierPolicies[memberTier].name})</div></div>
                 <div className="text-base font-black text-amber-600">{metrics.compPrice.toLocaleString()}원 대</div>
               </div>
-              <div className="font-bold text-slate-700 mt-2">인근 핵심 경쟁호텔 현황</div>
+              <div className="font-bold text-slate-700 mt-2">경쟁사 가격대</div>
               <div className="space-y-2">
-                {metrics.competitors.map((comp, idx) => (
+                {metrics.competitors.map((comp: any, idx: number) => (
                   <div key={idx} className="bg-slate-50 border border-slate-200 rounded-lg p-3 flex justify-between items-center">
                     <div><div className="font-bold text-slate-900">{comp.name}</div><div className="text-[10px] text-slate-500">{comp.position}</div></div>
                     <div className="text-right"><div className="font-bold text-slate-800">{comp.avgPrice}</div><div className="text-[10px] text-emerald-600 font-medium">점유율 {comp.occ}</div></div>
@@ -512,10 +613,9 @@ export default function GladPricingDashboard() {
         </div>
       )}
 
-      {/* 좌측 사이드바 - GLAD HOTEL 공식 브랜드 네이비 톤 고정 (대시보드와 대비감을 주는 프리미엄 네이비 헤리티지) */}
+      {/* 좌측 사이드바 */}
       <aside className="w-64 bg-slate-900 text-slate-300 border-r border-slate-800 flex flex-col shrink-0 shadow-lg">
         
-        {/* GLAD HOTELS & RESORTS 브랜드 로고 영역 */}
         <div className="p-5 border-b border-slate-800 flex flex-col items-center justify-center text-center gap-1 bg-slate-950">
           <div className="tracking-[0.22em] font-black text-white text-2xl font-sans uppercase">
             GLAD
@@ -525,11 +625,10 @@ export default function GladPricingDashboard() {
             HOTELS & RESORTS
           </div>
           <div className="mt-2 bg-amber-500/15 border border-amber-400/30 text-amber-400 px-2.5 py-0.5 rounded-full text-[9px] font-bold">
-            Dynamic Pricing RMS
+            Dynamic Pricing RMS v2.5
           </div>
         </div>
 
-        {/* 3개 Property 선택 셀렉터 */}
         <div className="p-3 border-b border-slate-800/80 bg-slate-950/60">
           <div className="text-[10px] font-bold text-slate-400 mb-1.5 flex items-center gap-1 px-1">
             <MapPin size={12} className="text-amber-400" /> 관제 지점 (Property)
@@ -552,7 +651,7 @@ export default function GladPricingDashboard() {
                     {item.name}
                     {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>}
                   </span>
-                  <span className="text-[9px] text-slate-400 font-normal truncate mt-0.5">{item.subText}</span>
+                  <span className="text-[9px] text-slate-400 font-normal truncate mt-0.5">{item.subText} ({item.totalRooms})</span>
                 </button>
               );
             })}
@@ -569,20 +668,19 @@ export default function GladPricingDashboard() {
         </nav>
 
         <div className="p-3 m-3 bg-slate-950/80 rounded-xl border border-slate-800 text-[11px] text-slate-400">
-          <div className="font-bold text-amber-400 mb-0.5">Club GLAD 허브</div>
-          <div className="text-[10px] text-slate-400">멤버십 등급 할인 실시간 파이프라인 작동 중</div>
+          <div className="font-bold text-amber-400 mb-0.5">요금 및 가동률 동기화됨</div>
+          <div className="text-[10px] text-slate-400">시즌/공휴일 피크 연동 동적 가동률 엔진</div>
         </div>
       </aside>
 
-      {/* 우측 메인 콘텐츠 영역 (밝고 선명한 라이트 테마 적용) */}
+      {/* 메인 콘텐츠 영역 */}
       <main className="flex-1 flex flex-col h-full overflow-hidden bg-slate-100">
         
-        {/* 상단 헤더 (화이트 라이트 테마) */}
         <header className="h-14 bg-white border-b border-slate-200 flex items-center justify-between px-6 shrink-0 shadow-2xs">
           <div className="flex items-center gap-3">
             <span className="text-sm font-bold tracking-tight text-slate-900 flex items-center gap-2">
               <span className="bg-slate-900 text-amber-400 font-black px-2.5 py-0.5 rounded text-[11px]">{activePropertyData.name}</span>
-              <span className="text-slate-700 font-medium">다이내믹 프라이싱 & 멤버십 관제</span>
+              <span className="text-slate-700 font-medium">다이내믹 프라이싱</span>
             </span>
             <span className="text-slate-300">|</span>
             <span className="text-amber-600 font-bold text-xs">{activeMenu}</span>
@@ -590,7 +688,6 @@ export default function GladPricingDashboard() {
           </div>
 
           <div className="flex items-center gap-3">
-            {/* 날씨 변수 Quick Selector */}
             <div className="flex items-center gap-1.5 bg-slate-50 px-2.5 py-1 rounded-md border border-slate-200 text-xs shadow-2xs">
               <CloudSun size={14} className="text-amber-600" />
               <span className="text-slate-500 text-[11px]">기상 변수:</span>
@@ -607,10 +704,9 @@ export default function GladPricingDashboard() {
               </select>
             </div>
 
-            {/* 날짜 선택 버블 */}
             <div onClick={() => setIsCalendarOpen(true)} className="flex items-center gap-2 bg-slate-50 px-3 py-1 rounded-md text-slate-700 border border-slate-200 cursor-pointer hover:bg-amber-50/50 hover:border-amber-300 transition-all text-xs shadow-2xs">
               <CalendarDays size={14} className="text-amber-600" />
-              <span className="font-semibold">{dateRangeLabel}</span>
+              <span className="font-semibold">{dateRangeLabel} ({dates.length}일간)</span>
               <ChevronDown size={14} className="text-slate-400" />
             </div>
 
@@ -621,40 +717,57 @@ export default function GladPricingDashboard() {
           </div>
         </header>
 
-        {/* 본문 레이아웃 */}
         <div className="flex-1 p-4 flex gap-4 overflow-hidden bg-slate-100">
           
-          {/* [메뉴 1] 대시보드 화면 */}
           {activeMenu === '대시보드' && (
             <>
               <div className="flex-1 flex flex-col gap-3 h-full overflow-hidden">
                 
-                {/* 4대 핵심 KPI 카드 (화이트 앤 실버 스타일) */}
+                {/* 4대 KPI 카드 */}
                 <div className="grid grid-cols-4 gap-3 shrink-0">
+                   {/* 1. 선택 기간 비례 동적 집계 매출 카드 */}
                    <div onClick={() => setIsRevenueModalOpen(true)} className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs cursor-pointer hover:border-amber-500 hover:shadow-md transition-all group">
-                      <div className="text-[11px] text-slate-500 mb-0.5 font-medium flex items-center justify-between"><span className="flex items-center gap-1"><DollarSign size={13} className="text-emerald-600"/> [{activePropertyData.name}] 예상 매출</span><ExternalLink size={12} className="text-slate-400 group-hover:text-amber-600" /></div>
-                      <div className="text-lg font-black text-amber-600 tracking-tight mt-1">{Math.round(metrics.baseRevenue).toLocaleString()}원</div>
+                      <div className="text-[11px] text-slate-500 mb-0.5 font-medium flex items-center justify-between">
+                        <span className="flex items-center gap-1"><DollarSign size={13} className="text-emerald-600"/> [{activePropertyData.name}] 선택 기간({dates.length}일) 예상 매출</span>
+                        <ExternalLink size={12} className="text-slate-400 group-hover:text-amber-600" />
+                      </div>
+                      <div className="text-lg font-black text-amber-600 tracking-tight mt-1">
+                        {Math.round(metrics.periodRevenue || (metrics.baseRevenue * dates.length)).toLocaleString()}원
+                      </div>
+                      <div className="text-[9.5px] text-slate-400 mt-0.5">일평균 약 {Math.round(metrics.baseRevenue || 0).toLocaleString()}원</div>
                    </div>
+
+                   {/* 2. 동적 실질 가동률(OCC) 카드 */}
                    <div onClick={() => setIsOccModalOpen(true)} className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs cursor-pointer hover:border-amber-500 hover:shadow-md transition-all group">
-                      <div className="text-[11px] text-slate-500 mb-0.5 font-medium flex items-center justify-between"><span className="flex items-center gap-1"><PieChart size={13} className="text-sky-600"/> 실질 가동률 (OCC)</span><ExternalLink size={12} className="text-slate-400 group-hover:text-amber-600" /></div>
-                      <div className="text-lg font-bold text-slate-900 mt-1">{metrics.baseOcc}%</div>
+                      <div className="text-[11px] text-slate-500 mb-0.5 font-medium flex items-center justify-between">
+                        <span className="flex items-center gap-1"><PieChart size={13} className="text-sky-600"/> 실질 가동률 (Effective OCC)</span>
+                        <ExternalLink size={12} className="text-slate-400 group-hover:text-amber-600" />
+                      </div>
+                      <div className="text-lg font-black text-slate-900 mt-1">
+                        {metrics.periodAvgOcc || metrics.baseOcc}%
+                      </div>
+                      <div className="text-[9.5px] text-slate-400 mt-0.5">선택 {dates.length}일 평균 (주말 {metrics.weekendAvgOcc || 95}%)</div>
                    </div>
+
                    <div onClick={() => setIsCompetitorModalOpen(true)} className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs cursor-pointer hover:border-amber-500 hover:shadow-md transition-all group">
-                      <div className="text-[11px] text-slate-500 mb-0.5 font-medium flex items-center justify-between"><span className="flex items-center gap-1"><Building2 size={13} className="text-purple-600"/> 권역 Comp-Set 평균 요금</span><ExternalLink size={12} className="text-slate-400 group-hover:text-amber-600" /></div>
+                      <div className="text-[11px] text-slate-500 mb-0.5 font-medium flex items-center justify-between"><span className="flex items-center gap-1"><Building2 size={13} className="text-purple-600"/> Comp-Set 10월 평균</span><ExternalLink size={12} className="text-slate-400 group-hover:text-amber-600" /></div>
                       <div className="text-lg font-bold text-slate-900 mt-1">{metrics.compPrice.toLocaleString()}원</div>
+                      <div className="text-[9.5px] text-slate-400 mt-0.5">주변 4개 경쟁 호텔 실시간 분석</div>
                    </div>
+
                    <div onClick={() => setIsFlightModalOpen(true)} className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs cursor-pointer hover:border-amber-500 hover:shadow-md transition-all group">
                       <div className="text-[11px] text-slate-500 mb-0.5 font-medium flex items-center justify-between"><span className="flex items-center gap-1"><PlaneTakeoff size={13} className="text-amber-600"/> 공항 실시간 입국 트래픽</span><ExternalLink size={12} className="text-slate-400 group-hover:text-amber-600" /></div>
-                      <div className="text-xs font-bold text-slate-900 mt-1 truncate">{airportData.pax} (계수 x{airportData.multiplier})</div>
+                      <div className="text-xs font-bold text-slate-900 mt-1 truncate">{airportData.pax}</div>
+                      <div className="text-[9.5px] text-slate-400 mt-0.5">인바운드 demand 계수 x{airportData.multiplier}</div>
                    </div>
                 </div>
 
-                {/* 중앙 히트맵 테이블 영역 (화이트 앤 깨끗한 스톤 라이트) */}
+                {/* 중앙 히트맵 */}
                 <div className="flex-1 bg-white rounded-xl border border-slate-200 p-4 flex flex-col overflow-hidden shadow-2xs">
                   <div className="flex justify-between items-center mb-3 shrink-0">
                     <div>
                       <h2 className="text-xs font-bold text-slate-900 uppercase tracking-wide flex items-center gap-2">
-                        <span>[{activePropertyData.name}] 객실 타입별 실시간 다이내믹 요금 히트맵</span>
+                        <span>[{activePropertyData.name}] 10월 객실 상품별 다이내믹 요금 히트맵</span>
                         <span className="text-[10px] text-amber-700 font-semibold bg-amber-50 border border-amber-200 px-2 py-0.5 rounded">
                           {tierPolicies[memberTier].name} 할인율({tierPolicies[memberTier].discountRate}%) 연동 중
                         </span>
@@ -662,38 +775,39 @@ export default function GladPricingDashboard() {
                     </div>
                   </div>
 
-                  {/* 히트맵 상태 가이드 */}
                   <div className="bg-slate-50 border border-slate-200 rounded-lg p-2.5 mb-3 text-[10px] text-slate-600 grid grid-cols-4 gap-2 shrink-0 shadow-inner">
                     <div className="flex flex-col gap-0.5 border-r border-slate-200 pr-2">
                       <span className="font-bold text-rose-700 flex items-center gap-1"><div className="w-2.5 h-2.5 bg-rose-600 rounded-full"></div> 만실임박 (Dark Red)</span>
-                      <span>수요 105% 초과. 최고 할증가(Max Cap) 적용.</span>
+                      <span>수요 94% 이상. 10월 상한 요금(Max Cap) 적용.</span>
                     </div>
                     <div className="flex flex-col gap-0.5 border-r border-slate-200 pr-2 pl-1">
                       <span className="font-bold text-amber-800 flex items-center gap-1"><div className="w-2.5 h-2.5 bg-amber-500 rounded-full"></div> 수요높음 (High)</span>
-                      <span>수요 88% 이상. 이벤트/기상 호조로 요금 인상.</span>
+                      <span>수요 86% 이상. 가을 성수기 주말 인상 요금.</span>
                     </div>
                     <div className="flex flex-col gap-0.5 border-r border-slate-200 pr-2 pl-1">
-                      <span className="font-bold text-slate-700 flex items-center gap-1"><div className="w-2.5 h-2.5 bg-white border border-slate-300 rounded-full"></div> 표준 방어 (Standard)</span>
-                      <span>수요 65~88% 평시 안정 구간.</span>
+                      <span className="font-bold text-slate-700 flex items-center gap-1"><div className="w-2.5 h-2.5 bg-white border border-slate-300 rounded-full"></div> 통상 방어 (Standard)</span>
+                      <span>10월 평시 기준 요금대 유지.</span>
                     </div>
                     <div className="flex flex-col gap-0.5 pl-1">
                       <span className="font-bold text-emerald-700 flex items-center gap-1"><div className="w-2.5 h-2.5 bg-emerald-600 rounded-full"></div> 할인필요 (Lower)</span>
-                      <span>수요 65% 미만. 최저 하한선까지 요금 완화.</span>
+                      <span>수요 68% 미만. 최저 하한선(Floor Price) 완화.</span>
                     </div>
                   </div>
 
-                  {/* 히트맵 데이터 매트릭스 */}
                   <div className="flex-1 overflow-auto border border-slate-200 rounded-lg relative bg-white">
                     <table className="w-full text-center">
                       <thead>
                         <tr className="bg-slate-100 sticky top-0 z-10 text-slate-700 border-b border-slate-200">
-                          <th className="border-r border-slate-200 p-2.5 font-bold w-40 text-left pl-4 bg-slate-100">객실 타입</th>
-                          {dates.map((d, i) => (
-                            <th key={i} className={`border-r border-slate-200 p-2 font-bold bg-slate-100 ${checkWeekend(d) ? 'text-amber-700 bg-amber-50/60' : ''}`}>
-                              {d}
-                              {checkWeekend(d) && <div className="text-[9px] font-normal text-amber-600 leading-none mt-0.5">주말</div>}
-                            </th>
-                          ))}
+                          <th className="border-r border-slate-200 p-2.5 font-bold w-48 text-left pl-4 bg-slate-100">10월 객실 상품</th>
+                          {dates.map((d, i) => {
+                            const { isWeekend, isHolidayPeak } = getDayDetails(d);
+                            return (
+                              <th key={i} className={`border-r border-slate-200 p-2 font-bold bg-slate-100 ${isWeekend || isHolidayPeak ? 'text-amber-700 bg-amber-50/60' : ''}`}>
+                                {d}
+                                {(isWeekend || isHolidayPeak) && <div className="text-[9px] font-normal text-amber-600 leading-none mt-0.5">{isHolidayPeak ? '특수' : '주말'}</div>}
+                              </th>
+                            );
+                          })}
                         </tr>
                       </thead>
                       <tbody>
@@ -701,14 +815,14 @@ export default function GladPricingDashboard() {
                           <tr key={idx} className="border-b border-slate-200">
                             <td className="border-r border-slate-200 p-2.5 font-bold text-slate-800 bg-slate-50 text-left pl-4 sticky left-0 z-10">
                               {room.type}
-                              <div className="text-[10px] font-normal text-slate-400 mt-0.5">기준: {(room.basePrice/10000).toFixed(0)}만원</div>
+                              <div className="text-[10px] font-normal text-slate-400 mt-0.5">통상가: {(room.basePrice/10000).toFixed(0)}만 (범위: {(room.minPrice/10000).toFixed(0)}만~{(room.maxPrice/10000).toFixed(0)}만)</div>
                             </td>
                             {room.rates.map((rate: any, i: number) => (
                               <td key={i} className={`border-r border-slate-200 p-1.5 transition-colors ${getBgColor(rate?.status)}`}>
                                 {rate ? (
                                   <>
                                     <div className="font-bold tracking-tight text-xs">{rate.price}</div>
-                                    {rate.status !== 'standard' && <div className="text-[9px] opacity-90 mt-0.5">예상 {rate.rate}</div>}
+                                    <div className="text-[9px] opacity-90 mt-0.5">예상 {rate.rate}</div>
                                   </>
                                 ) : <div className="animate-pulse h-5 bg-slate-200 rounded w-full"></div>}
                               </td>
@@ -721,10 +835,8 @@ export default function GladPricingDashboard() {
                 </div>
               </div>
 
-              {/* 우측 제어 파라미터 패널 */}
+              {/* 우측 패널 */}
               <div className="w-80 shrink-0 flex flex-col gap-3 h-full overflow-hidden">
-                
-                {/* 1. GLAD 멤버십 (Club GLAD) 등급 선택 */}
                 <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-2xs shrink-0 border-l-4 border-l-amber-500">
                   <h3 className="font-bold text-slate-900 mb-2 flex items-center gap-1.5 text-xs">
                     <Award size={14} className="text-amber-600"/> Club GLAD 멤버십 등급
@@ -745,10 +857,9 @@ export default function GladPricingDashboard() {
                   </div>
                 </div>
 
-                {/* 2. Property 맞춤형 수요 이벤트 시나리오 */}
                 <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-2xs shrink-0">
                   <h3 className="font-bold text-slate-900 mb-2 flex items-center gap-1.5 text-xs">
-                    <Zap size={14} className="text-amber-600"/> [{activePropertyData.name}] 특화 시나리오
+                    <Zap size={14} className="text-amber-600"/> [{activePropertyData.name}] 10월 시나리오
                   </h3>
                   <select 
                     value={currentScenario} 
@@ -763,7 +874,6 @@ export default function GladPricingDashboard() {
                   </select>
                 </div>
 
-                {/* 3. 프라이싱 알고리즘 파라미터 제어 */}
                 <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-2xs flex-1 flex flex-col justify-between relative">
                   <div>
                     <h3 className="font-bold text-slate-900 mb-3 flex items-center gap-1.5 text-xs">
@@ -803,61 +913,56 @@ export default function GladPricingDashboard() {
             </>
           )}
 
-          {/* [메뉴 2] 요금 설정 모듈 */}
           {activeMenu === '요금 설정' && (
             <div className="flex-1 bg-white rounded-xl border border-slate-200 p-6 flex flex-col gap-5 overflow-auto shadow-2xs">
               <div className="flex justify-between items-center border-b border-slate-100 pb-4">
-                <div><h2 className="text-base font-bold text-slate-900 flex items-center gap-2"><Sliders size={20} className="text-amber-600" /> [{activePropertyData.name}] 객실 타입별 기준 요금 & 가격 가드레일</h2><p className="text-xs text-slate-400 mt-0.5">다이내믹 프라이싱 엔진이 준수해야 할 지점별 마스터 기준가 및 방어 요금선</p></div>
-                <button onClick={() => { applyAI(); showToast('요금 설정 값이 히트맵에 실시간 반영되었습니다!'); }} className="flex items-center gap-2 bg-amber-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-amber-700 text-xs shadow-2xs"><Save size={14} /> 요금 정책 저장 및 반영</button>
+                <div><h2 className="text-base font-bold text-slate-900 flex items-center gap-2"><Sliders size={20} className="text-amber-600" /> [{activePropertyData.name}] 10월 객실가 조정 마스터</h2><p className="text-xs text-slate-400 mt-0.5">10월 통상 요금 및 가드레일 제어</p></div>
+                <button onClick={() => { applyAI(); showToast('10월 객실 요금 설정이 다이내믹 히트맵에 실시간 반영되었습니다!'); }} className="flex items-center gap-2 bg-amber-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-amber-700 text-xs shadow-2xs"><Save size={14} /> 요금 정책 저장 및 반영</button>
               </div>
               <div className="grid grid-cols-2 gap-6">
                 {roomConfigs.map((room, idx) => (
                   <div key={idx} className="bg-slate-50 border border-slate-200 rounded-xl p-5 flex flex-col gap-4">
                     <div className="font-bold text-slate-900 text-sm border-b border-slate-200 pb-2 flex justify-between items-center">
                       <span>{room.type}</span>
-                      <span className="text-xs font-normal text-amber-600">지점 마스터 등록</span>
+                      <span className="text-xs font-normal text-amber-600"></span>
                     </div>
-                    <div><label className="block text-xs font-medium text-slate-600 mb-1">기본 객실가 (Base Rate)</label><input type="number" step="10000" value={room.basePrice} onChange={(e) => { const updated = [...roomConfigs]; updated[idx].basePrice = Number(e.target.value); setRoomConfigs(updated); }} className="w-full border border-slate-300 rounded-lg p-2.5 text-xs font-bold bg-white text-slate-900 outline-none focus:border-amber-500" /></div>
-                    <div><label className="block text-xs font-medium text-slate-600 mb-1">최저 방어 요금 (Floor Price)</label><input type="number" step="10000" value={room.minPrice} onChange={(e) => { const updated = [...roomConfigs]; updated[idx].minPrice = Number(e.target.value); setRoomConfigs(updated); }} className="w-full border border-slate-300 rounded-lg p-2.5 text-xs font-bold bg-white text-slate-900 outline-none focus:border-amber-500" /></div>
-                    <div><label className="block text-xs font-medium text-slate-600 mb-1">최고 상한 요금 (Max Ceiling)</label><input type="number" step="10000" value={room.maxPrice} onChange={(e) => { const updated = [...roomConfigs]; updated[idx].maxPrice = Number(e.target.value); setRoomConfigs(updated); }} className="w-full border border-slate-300 rounded-lg p-2.5 text-xs font-bold bg-white text-slate-900 outline-none focus:border-amber-500" /></div>
+                    <div><label className="block text-xs font-medium text-slate-600 mb-1">10월 통상가 (Base Rate)</label><input type="number" step="10000" value={room.basePrice} onChange={(e) => { const updated = [...roomConfigs]; updated[idx].basePrice = Number(e.target.value); setRoomConfigs(updated); }} className="w-full border border-slate-300 rounded-lg p-2.5 text-xs font-bold bg-white text-slate-900 outline-none focus:border-amber-500" /></div>
+                    <div><label className="block text-xs font-medium text-slate-600 mb-1">평일 최저가 (Floor Price)</label><input type="number" step="10000" value={room.minPrice} onChange={(e) => { const updated = [...roomConfigs]; updated[idx].minPrice = Number(e.target.value); setRoomConfigs(updated); }} className="w-full border border-slate-300 rounded-lg p-2.5 text-xs font-bold bg-white text-slate-900 outline-none focus:border-amber-500" /></div>
+                    <div><label className="block text-xs font-medium text-slate-600 mb-1">주말/피크 상한가 (Max Ceiling)</label><input type="number" step="10000" value={room.maxPrice} onChange={(e) => { const updated = [...roomConfigs]; updated[idx].maxPrice = Number(e.target.value); setRoomConfigs(updated); }} className="w-full border border-slate-300 rounded-lg p-2.5 text-xs font-bold bg-white text-slate-900 outline-none focus:border-amber-500" /></div>
                   </div>
                 ))}
               </div>
             </div>
           )}
 
-          {/* [메뉴 3] 예약 현황 모듈 */}
           {activeMenu === '예약 현황' && (
             <div className="flex-1 bg-white rounded-xl border border-slate-200 p-6 flex flex-col gap-4 overflow-auto shadow-2xs">
-              <div className="border-b border-slate-100 pb-4"><h2 className="text-base font-bold text-slate-900 flex items-center gap-2"><CalendarDays size={20} className="text-amber-600" /> [{activePropertyData.name}] 객실 예약 현황 및 블록 관리</h2><p className="text-xs text-slate-400 mt-0.5">지점별 법인 계약 블록 및 Club GLAD VIP 홀딩 물량을 제외한 실질 일반 가용 객실 현황</p></div>
+              <div className="border-b border-slate-100 pb-4"><h2 className="text-base font-bold text-slate-900 flex items-center gap-2"><CalendarDays size={20} className="text-amber-600" /> [{activePropertyData.name}] 10월 객실 예약 현황</h2><p className="text-xs text-slate-400 mt-0.5">OTA 및 직영 채널 판매 현황 및 법인/VIP 블록 물량 관리</p></div>
               <div className="grid grid-cols-3 gap-4">
                 <div className="bg-amber-50 border border-amber-200 rounded-xl p-4"><div className="text-xs text-amber-900 font-medium mb-1">총 객실 수 / 가용 객실</div><div className="text-2xl font-black text-slate-900">{activePropertyData.totalRooms} <span className="text-xs font-normal text-slate-500">({metrics.occBreakdown.available} 일반판매)</span></div></div>
-                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4"><div className="text-xs text-slate-500 font-medium mb-1">확정 예약 객실 (OTA/Direct)</div><div className="text-2xl font-black text-emerald-600">{metrics.occBreakdown.sold} ({metrics.baseOcc}%)</div></div>
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4"><div className="text-xs text-slate-500 font-medium mb-1">10월 평균 예약 가동률</div><div className="text-2xl font-black text-emerald-600">{metrics.periodAvgOcc || metrics.baseOcc}%</div></div>
                 <div className="bg-slate-50 border border-slate-200 rounded-xl p-4"><div className="text-xs text-slate-500 font-medium mb-1">법인 계약 및 VIP 블록</div><div className="text-2xl font-black text-amber-600">{metrics.occBreakdown.corpBlock} + {metrics.occBreakdown.memberHold}</div></div>
               </div>
             </div>
           )}
 
-          {/* [메뉴 4] 시장 분석 모듈 */}
           {activeMenu === '시장 분석' && (
             <div className="flex-1 bg-white rounded-xl border border-slate-200 p-6 flex flex-col gap-4 overflow-auto shadow-2xs">
-              <div className="border-b border-slate-100 pb-4"><h2 className="text-base font-bold text-slate-900 flex items-center gap-2"><LineChart size={20} className="text-amber-600" /> [{activePropertyData.name}] 권역 특성 & 시장 수요 리포트</h2><p className="text-xs text-slate-400 mt-0.5">인근 컴프세트 호텔 가격 추이와 기상/주변 행사 연동 트래픽 분석</p></div>
+              <div className="border-b border-slate-100 pb-4"><h2 className="text-base font-bold text-slate-900 flex items-center gap-2"><LineChart size={20} className="text-amber-600" /> [{activePropertyData.name}] 10월 시장 분석</h2><p className="text-xs text-slate-400 mt-0.5">경쟁사 및 주변 행사 연동 트래픽 분석</p></div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 flex flex-col justify-between">
                   <div>
-                    <div className="font-bold text-slate-900 text-sm mb-2">지점별 상권 및 이벤트 탄력성</div>
+                    <div className="font-bold text-slate-900 text-sm mb-2">10월 객실 등급별 가격격차 현실화</div>
                     <p className="text-xs text-slate-600 leading-relaxed">
-                      {selectedProperty === 'yeouido' && '여의도 금융가 출장자 중심의 평시 주중(화~목) 점유율과 불꽃축제/봄꽃축제 시 주말 요금 폭발(Surge) 패턴이 뚜렷합니다.'}
-                      {selectedProperty === 'mapo' && '공항철도 및 마포대로 비즈니스 직장인 수요가 안정적이며, 경의선 숲길 및 홍대 인바운드 외국인 FIT 유입 탄력성이 높습니다.'}
-                      {selectedProperty === 'coex' && '테헤란로 IT/금융 바이어 비즈니스와 코엑스 MICE 행사 및 영동대로 K-POP 공연 시즌의 객실 단가 상승 폭이 가장 큽니다.'}
+                      스탠다드(24만~28만 원)부터 스위트(58만~68만 원)까지 상품군 간 단가 격차를 뚜렷하게 구성하여, 가을 성수기 업셀링 및 주말 피크 수익 극대화 모델을 적용했습니다.
                     </p>
                   </div>
                 </div>
                 <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 flex flex-col justify-between">
                   <div>
-                    <div className="font-bold text-slate-900 text-sm mb-2">기상(Weather) & 주변 행사 연동 효율</div>
+                    <div className="font-bold text-slate-900 text-sm mb-2">기상 & 행사 연동 트래픽</div>
                     <p className="text-xs text-slate-600 leading-relaxed">
-                      현재 설정된 기상 환경 [{weatherPolicies[weatherCondition].name}] 변수가 가용 점유율 계수에 연동되어 자동 가격을 보정하고 있습니다. ({weatherPolicies[weatherCondition].desc})
+                      현재 기상 변수 [{weatherPolicies[weatherCondition].name}] 및 공항 트래픽 계수({airportData.multiplier})가 연동되어 다이내믹 가격을 산출합니다.
                     </p>
                   </div>
                 </div>
@@ -865,15 +970,14 @@ export default function GladPricingDashboard() {
             </div>
           )}
 
-          {/* [메뉴 5] AI 최적화 룰 모듈 */}
           {activeMenu === 'AI 최적화 룰' && (
             <div className="flex-1 bg-white rounded-xl border border-slate-200 p-6 flex flex-col gap-4 overflow-auto shadow-2xs">
               <div className="border-b border-slate-100 pb-4"><h2 className="text-base font-bold text-slate-900 flex items-center gap-2"><Sparkles size={20} className="text-amber-600" /> AI 프라이싱 자율 구동 최적화 룰</h2><p className="text-xs text-slate-400 mt-0.5">글래드 프라이싱 엔진의 자동 가격 방어 및 서지 알고리즘 제어</p></div>
               <div className="space-y-3">
                 {[
-                  { key: 'autoPriceSync', title: '경쟁사 가격 실시간 자동 동기화 봇', desc: `${activePropertyData.name} 권역 Comp-Set 변동 시 자사 요금 실시간 자동 보정` },
-                  { key: 'corpBlockProtection', title: '법인 계약 및 VIP 홀딩 블록 보호 가드레일', desc: '지역 대형 행사 시즌 일반 객실 요금을 자동 상향하여 객실 수익성 사수' },
-                  { key: 'competitorUnderCutGuard', title: '출혈 경쟁 방지 하한선 자동 방어선', desc: '경쟁사의 무리한 할인전에도 설정된 Floor Price 이하로 하락 방지' },
+                  { key: 'autoPriceSync', title: 'OTA 및 채널 실시간 요금 동기화 봇', desc: `${activePropertyData.name} 권역 10월 실측 가격 변동 시 자사 요금 실시간 자동 보정` },
+                  { key: 'corpBlockProtection', title: '법인 계약 및 VIP 홀딩 블록 보호 가드레일', desc: '10월 대형 행사 시즌 일반 객실 요금을 자동 상향하여 객실 수익성 사수' },
+                  { key: 'competitorUnderCutGuard', title: '출혈 경쟁 방지 하한선 자동 방어선', desc: '경쟁사의 무리한 할인전에도 설정된 10월 Floor Price 이하로 하락 방지' },
                   { key: 'weekendSurgeBoost', title: '주말 및 기상 호조 요금 서지(Surge) 부스팅', desc: '수요 집중 및 날씨 쾌청 시 AI가 가중치를 곱해 단가 극대화' }
                 ].map((rule) => {
                   const isOn = aiRules[rule.key as keyof typeof aiRules];
@@ -888,7 +992,6 @@ export default function GladPricingDashboard() {
             </div>
           )}
 
-          {/* [메뉴 6] 시스템 설정 모듈 */}
           {activeMenu === '시스템 설정' && (
             <div className="flex-1 bg-white rounded-xl border border-slate-200 p-6 flex flex-col gap-5 overflow-auto shadow-2xs">
               <div className="border-b border-slate-100 pb-4">
@@ -918,10 +1021,10 @@ export default function GladPricingDashboard() {
 
                 <div className="flex flex-col gap-4">
                   <div className="bg-slate-50 border border-slate-200 rounded-xl p-5">
-                    <div className="font-bold text-slate-900 text-sm mb-3">글래드 통합 PMS & 리워즈 서버 연동 상태</div>
+                    <div className="font-bold text-slate-900 text-sm mb-3">글래드 통합 PMS & Channel API 연동 상태</div>
                     <div className="space-y-2 text-xs">
                       <div className="flex justify-between items-center bg-white p-3 rounded border border-slate-200">
-                        <span className="text-slate-700">오라클 오페라 PMS / Club GLAD API</span>
+                        <span className="text-slate-700">오라클 오페라 PMS / Channel API</span>
                         <span className="text-emerald-600 font-bold flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> 정상 연동중</span>
                       </div>
                     </div>
@@ -929,7 +1032,7 @@ export default function GladPricingDashboard() {
                   <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 flex flex-col justify-between flex-1">
                     <div>
                       <div className="font-bold text-slate-900 text-sm mb-2">리워즈 정책 데이터 강제 동기화</div>
-                      <p className="text-xs text-slate-500 leading-relaxed mb-4">멤버십 서버에서 최신 등급별 할인 규칙과 회원 등급 변동 원장을 동기화합니다.</p>
+                      <p className="text-xs text-slate-500 leading-relaxed mb-4">멤버십 서버 및 채널 파이프라인에서 최신 등급별 할인 규칙을 동기화합니다.</p>
                     </div>
                     <button onClick={() => showToast('Club GLAD 멤버십 리워즈 정책이 최신 원장과 동기화되었습니다.')} className="w-full bg-slate-900 hover:bg-slate-800 text-white py-2.5 rounded-lg font-bold text-xs shadow-2xs flex items-center justify-center gap-2">
                       <RefreshCcw size={14} /> Club GLAD 정책 강제 동기화
