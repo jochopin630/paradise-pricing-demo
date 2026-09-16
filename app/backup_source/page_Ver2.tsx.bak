@@ -1,0 +1,712 @@
+"use client";
+
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { LayoutDashboard, Settings, CalendarDays, LineChart as LineChartIcon, Cpu, Bell, ChevronDown, Loader2, PlaneTakeoff, Building2, ShieldAlert, Sliders, Sparkles, X, ExternalLink, Save, CheckCircle2, DollarSign, PieChart, RefreshCcw, Award, Users, Globe, TrendingUp, HelpCircle, ArrowUpRight, Search, Zap, Check } from 'lucide-react';
+
+export default function ParnasPricingDashboard() {
+  // 1. 상태 관리
+  const [activeMenu, setActiveMenu] = useState('대시보드');
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState('방금 전');
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // 캘린더 모달 상태 및 동적 날짜 배열
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+  const [startDate, setStartDate] = useState('2026-10-01');
+  const [endDate, setEndDate] = useState('2026-10-14');
+  const [dateRangeLabel, setDateRangeLabel] = useState('2026.10.01 (목) ~ 2026.10.14 (수)');
+  const [dates, setDates] = useState([
+    { day: '10.01', week: '(목)' },
+    { day: '10.02', week: '(금)' },
+    { day: '10.03', week: '(토)' },
+    { day: '10.04', week: '(일)' },
+    { day: '10.05', week: '(월)' },
+    { day: '10.06', week: '(화)' },
+    { day: '10.07', week: '(수)' },
+    { day: '10.08', week: '(목)' },
+    { day: '10.09', week: '(금)' },
+    { day: '10.10', week: '(토)' },
+    { day: '10.11', week: '(일)' },
+    { day: '10.12', week: '(월)' },
+    { day: '10.13', week: '(화)' },
+    { day: '10.14', week: '(수)' }
+  ]);
+
+  // 마우스 호버 툴팁 상태 및 컨테이너 참조
+  const [tooltip, setTooltip] = useState<{ visible: boolean; x: number; y: number; title: string; date: string; price: string } | null>(null);
+  const chartContainerRef = useRef<HTMLDivElement>(null);
+
+  // 상단 카드 인터랙티브 팝업 상태 ('none' | 'revenue' | 'occ' | 'competitor' | 'flight' | 'recommendation')
+  const [activeModal, setActiveModal] = useState<'none' | 'revenue' | 'occ' | 'competitor' | 'flight' | 'recommendation'>('none');
+
+  // 객실 필터 토글 상태 (Deluxe, Junior, Classic Room, Classic Suite)
+  const [roomFilters, setRoomFilters] = useState({
+    deluxe: true,
+    junior: true,
+    classicRoom: true,
+    classicSuite: true
+  });
+
+  // What-if 시뮬레이션 슬라이더 상태 및 실시간 연산 반영 상태
+  const [whatIfSlider, setWhatIfSlider] = useState(15);
+  const [simulatedRevenue, setSimulatedRevenue] = useState(138287500);
+  const [simulatedAdr, setSimulatedAdr] = useState(1083000);
+  const [simulatedOcc, setSimulatedOcc] = useState(76.0);
+  const [simulatedRevpar, setSimulatedRevpar] = useState(823000);
+
+  // What-if 슬라이더 조절 시 실시간 지표 연동 함수
+  useEffect(() => {
+    const factor = 1 + (whatIfSlider / 100) * 0.4;
+    const occFactor = Math.max(50, Math.min(95, 76 - (whatIfSlider * 0.15)));
+    setSimulatedRevenue(Math.round(138287500 * factor));
+    setSimulatedAdr(Math.round(1083000 * factor));
+    setSimulatedOcc(Number(occFactor.toFixed(1)));
+    setSimulatedRevpar(Math.round(823000 * factor * 0.95));
+  }, [whatIfSlider]);
+
+  // 파르나스 객실 타입별 상세 데이터 상태
+  const [roomTableData, setRoomTableData] = useState([
+    { type: 'Deluxe Room', base: 820000, ai: 945000, final: 945000, change: '+15.2%', occ: '82%', revenue: '+8.6M', color: '#22d3ee', active: true },
+    { type: 'Junior Suite', base: 1150000, ai: 1280000, final: 1280000, change: '+11.3%', occ: '68%', revenue: '+5.4M', color: '#f87171', active: true },
+    { type: 'Classic Room', base: 680000, ai: 740000, final: 740000, change: '+8.8%', occ: '74%', revenue: '+3.2M', color: '#38bdf8', active: true },
+    { type: 'Classic Suite', base: 1320000, ai: 1450000, final: 1450000, change: '+9.8%', occ: '61%', revenue: '+2.8M', color: '#ffffff', active: true }
+  ]);
+
+  // 경쟁호텔 가격 비교표 데이터 (Comp Set)
+  const compSetData = [
+    { hotel: 'PARNAS HOTEL', d1: '945,000원', avg1: '910,000원', d2: '970,000원', avg2: '932,000원', pos: '+3.2%', isMe: true },
+    { hotel: 'Hotel A', d1: '920,000원', avg1: '885,000원', d2: '940,000원', avg2: '908,000원', pos: '+2.6%', isMe: false },
+    { hotel: 'Hotel B', d1: '970,000원', avg1: '940,000원', d2: '1,020,000원', avg2: '988,000원', pos: '+3.9%', isMe: false },
+    { hotel: 'Hotel C', d1: '890,000원', avg1: '860,000원', d2: '930,000원', avg2: '902,000원', pos: '+2.4%', isMe: false },
+    { hotel: 'Hotel D', d1: '990,000원', avg1: '960,000원', d2: '1,050,000원', avg2: '1,018,000원', pos: '+4.8%', isMe: false }
+  ];
+
+  // 채널별 수익성 비교 데이터
+  const channelData = [
+    { name: 'Direct (공식 웹/앱)', price: '1,000,000원', commission: '0%', net: '1,000,000원', highlight: true },
+    { name: 'OTA (Booking, Expedia 등)', price: '1,000,000원', commission: '18%', net: '820,000원', highlight: false },
+    { name: '멤버십 (IHG)', price: '950,000원', commission: '0%', net: '950,000원', highlight: false }
+  ];
+
+  // 수요 신호 데이터
+  const demandSignals = [
+    { label: '예약 Pickup', value: '+23%', trend: 'up' },
+    { label: '검색량', value: '+31%', trend: 'up' },
+    { label: '경쟁호텔 OCC', value: '+12%', trend: 'up' },
+    { label: '지역 이벤트', value: 'O (진행 중)', trend: 'neutral' },
+    { label: '과거 동일요일 ADR', value: '+17%', trend: 'up' }
+  ];
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3500);
+  };
+
+  const handleDateApply = () => {
+    setIsCalendarOpen(false);
+    showToast('관제 기간 및 실시간 데이터가 정상적으로 갱신되었습니다.');
+  };
+
+  const handleApplyRecommendation = () => {
+    setActiveModal('none');
+    showToast('AI 추천 가격(Deluxe Room 945,000원)이 승인 대기열에 성공적으로 등록되었습니다!');
+  };
+
+  const handleApplySimulatedChanges = () => {
+    showToast(`What-if 시뮬레이션 가격 조정률(+${whatIfSlider}%)이 PMS 채널에 적용되었습니다.`);
+  };
+
+  const menuItems = [
+    { icon: <LayoutDashboard size={18} />, label: '대시보드' },
+    { icon: <Sliders size={18} />, label: '객실별 가격전략' },
+    { icon: <Sparkles size={18} />, label: 'AI 추천 내역' },
+    { icon: <LineChartIcon size={18} />, label: '경쟁호텔 분석' },
+    { icon: <Globe size={18} />, label: '채널별 수익분석' },
+    { icon: <CalendarDays size={18} />, label: '이벤트 & 수요분석' },
+    { icon: <Settings size={18} />, label: '설정' },
+  ];
+
+  return (
+    <div className="flex h-screen w-screen overflow-hidden bg-slate-950 text-slate-100 font-sans text-sm select-none relative">
+      
+      {/* 토스트 메시지 알림 */}
+      {toastMessage && (
+        <div className="absolute top-20 right-6 bg-slate-900 text-amber-300 border border-amber-500/50 px-5 py-3 rounded-xl shadow-2xl z-50 flex items-center gap-3 animate-in fade-in zoom-in-95">
+          <CheckCircle2 size={20} className="text-amber-400 shrink-0" />
+          <span className="font-semibold text-xs sm:text-sm">{toastMessage}</span>
+        </div>
+      )}
+
+      {/* 캘린더 모달 */}
+      {isCalendarOpen && (
+        <div className="absolute inset-0 bg-black/75 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl w-full max-w-md p-6 flex flex-col gap-5 animate-in zoom-in-95">
+            <div className="flex justify-between items-center border-b border-slate-800 pb-3.5">
+              <h3 className="font-bold text-white flex items-center gap-2 text-base"><CalendarDays size={20} className="text-amber-400"/> 관제 기간 설정</h3>
+              <button onClick={() => setIsCalendarOpen(false)} className="text-slate-400 hover:text-white p-1"><X size={20} /></button>
+            </div>
+            <div className="space-y-4 text-xs sm:text-sm">
+              <div>
+                <label className="block text-slate-300 font-medium mb-1.5">관제 시작일</label>
+                <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white font-bold outline-none focus:border-amber-500" />
+              </div>
+              <div>
+                <label className="block text-slate-300 font-medium mb-1.5">관제 종료일</label>
+                <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white font-bold outline-none focus:border-amber-500" />
+              </div>
+            </div>
+            <div className="pt-3 border-t border-slate-800 flex gap-3 justify-end">
+              <button onClick={() => setIsCalendarOpen(false)} className="px-5 py-2.5 bg-slate-800 text-slate-300 rounded-xl font-bold hover:bg-slate-700 text-xs sm:text-sm">취소</button>
+              <button onClick={handleDateApply} className="px-6 py-2.5 bg-amber-500 text-slate-950 rounded-xl font-bold hover:bg-amber-400 shadow-lg text-xs sm:text-sm">적용하기</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* AI 추천 상세 모달 */}
+      {activeModal === 'recommendation' && (
+        <div className="absolute inset-0 bg-black/75 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl w-full max-w-lg p-6 flex flex-col gap-5 animate-in zoom-in-95">
+            <div className="flex justify-between items-center border-b border-slate-800 pb-3.5">
+              <h3 className="font-bold text-white flex items-center gap-2 text-base"><Sparkles size={20} className="text-amber-400"/> AI 추천 가격 상세 검토 (10/09 Deluxe Room)</h3>
+              <button onClick={() => setActiveModal('none')} className="text-slate-400 hover:text-white p-1"><X size={20} /></button>
+            </div>
+            <div className="space-y-4 text-xs sm:text-sm">
+              <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 flex justify-between items-center">
+                <div>
+                  <div className="text-slate-400 text-xs">현재 기준가</div>
+                  <div className="text-lg font-bold text-slate-300">820,000원</div>
+                </div>
+                <div className="text-xl font-bold text-slate-500">→</div>
+                <div>
+                  <div className="text-amber-400 text-xs font-bold">AI 추천가 (SURGE)</div>
+                  <div className="text-xl font-black text-amber-400">945,000원 <span className="text-xs font-bold text-emerald-400">(+15.2%)</span></div>
+                </div>
+              </div>
+              <div className="bg-amber-950/30 border border-amber-900/40 p-4 rounded-xl text-xs sm:text-sm text-amber-200 leading-relaxed">
+                해당 날짜는 인근 코엑스 대규모 MICE 행사 및 연휴 수요로 인해 예약 Pickup 속도가 평시 대비 +23% 빠르게 증가하고 있습니다. 가격 상향 조정 시 일일 객실 수익이 극대화됩니다.
+              </div>
+            </div>
+            <div className="pt-3 border-t border-slate-800 flex gap-3 justify-end">
+              <button onClick={() => setActiveModal('none')} className="px-5 py-2.5 bg-slate-800 text-slate-300 rounded-xl font-bold hover:bg-slate-700 text-xs sm:text-sm">닫기</button>
+              <button onClick={handleApplyRecommendation} className="px-6 py-2.5 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-500 shadow-lg text-xs sm:text-sm">승인 및 PMS 반영</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 매출 팝업 */}
+      {activeModal === 'revenue' && (
+        <div className="absolute inset-0 bg-black/75 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl w-full max-w-md p-6 flex flex-col gap-5 animate-in zoom-in-95">
+            <div className="flex justify-between items-center border-b border-slate-800 pb-3.5">
+              <h3 className="font-bold text-white flex items-center gap-2 text-base"><DollarSign size={20} className="text-emerald-400"/> 전사 예상 통합 매출 상세 분석</h3>
+              <button onClick={() => setActiveModal('none')} className="text-slate-400 hover:text-white p-1"><X size={20} /></button>
+            </div>
+            <div className="space-y-4 text-xs sm:text-sm">
+              <div className="bg-emerald-950/30 border border-emerald-800/50 rounded-xl p-4 text-emerald-200 flex justify-between items-center">
+                <div><div className="font-bold text-base">총 예상 통합 매출</div><div className="text-xs text-emerald-400 mt-0.5">AI 최적화 엔진 실시간 연동</div></div>
+                <div className="text-2xl font-black text-emerald-400">138,287,500원</div>
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="bg-slate-950 border border-slate-800 p-3.5 rounded-xl text-center"><div className="text-slate-400 text-xs mb-1">객실 (Room)</div><div className="font-bold text-white text-sm">98.5M</div></div>
+                <div className="bg-slate-950 border border-slate-800 p-3.5 rounded-xl text-center"><div className="text-slate-400 text-xs mb-1">식음 (F&B)</div><div className="font-bold text-white text-sm">28.2M</div></div>
+                <div className="bg-slate-950 border border-slate-800 p-3.5 rounded-xl text-center"><div className="text-slate-400 text-xs mb-1">연회/MICE</div><div className="font-bold text-white text-sm">11.5M</div></div>
+              </div>
+            </div>
+            <div className="pt-3 border-t border-slate-800 flex justify-end">
+              <button onClick={() => setActiveModal('none')} className="px-6 py-2.5 bg-amber-500 text-slate-950 rounded-xl font-bold text-xs sm:text-sm">확인 완료</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 가동률 팝업 */}
+      {activeModal === 'occ' && (
+        <div className="absolute inset-0 bg-black/75 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl w-full max-w-md p-6 flex flex-col gap-5 animate-in zoom-in-95">
+            <div className="flex justify-between items-center border-b border-slate-800 pb-3.5">
+              <h3 className="font-bold text-white flex items-center gap-2 text-base"><PieChart size={20} className="text-purple-400"/> 예상 객실 가동률 (OCC) 관제</h3>
+              <button onClick={() => setActiveModal('none')} className="text-slate-400 hover:text-white p-1"><X size={20} /></button>
+            </div>
+            <div className="space-y-4 text-xs sm:text-sm">
+              <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 flex justify-between items-center">
+                <div><div className="font-bold text-white text-sm">현재 실질 가동률</div><div className="text-xs text-slate-400">총 객실 550실 기준</div></div>
+                <div className="text-3xl font-black text-purple-400">76%</div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-slate-950 border border-slate-800 p-3.5 rounded-xl"><div className="text-slate-400 text-xs mb-1">확정 예약 객실</div><div className="font-bold text-white text-base">418실</div></div>
+                <div className="bg-slate-950 border border-slate-800 p-3.5 rounded-xl"><div className="text-slate-400 text-xs mb-1">잔여 가용 객실</div><div className="font-bold text-emerald-400 text-base">132실</div></div>
+              </div>
+            </div>
+            <div className="pt-3 border-t border-slate-800 flex justify-end">
+              <button onClick={() => setActiveModal('none')} className="px-6 py-2.5 bg-amber-500 text-slate-950 rounded-xl font-bold text-xs sm:text-sm">확인 완료</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 좌측 사이드바 (가독성 및 폰트 크기 최적화) */}
+      <aside className="w-64 bg-slate-900 text-slate-300 border-r border-slate-800 flex flex-col shrink-0">
+        <div className="p-5 border-b border-slate-800 flex flex-col items-center justify-center text-center gap-2 bg-slate-950/50">
+          <div className="w-11 h-11 rounded-full border border-amber-400/60 flex items-center justify-center text-amber-400 font-serif font-bold text-xl tracking-tighter bg-amber-400/10 shadow-inner">P</div>
+          <div>
+            <div className="text-white font-serif font-bold tracking-widest text-xs">PARNAS HOTEL</div>
+            <div className="text-[10px] text-amber-400 font-sans tracking-wider uppercase mt-0.5">SURGE RM ENGINE</div>
+          </div>
+        </div>
+        <nav className="flex-1 px-3 py-4 space-y-1.5">
+          {menuItems.map((item) => (
+            <button 
+              key={item.label} 
+              onClick={() => { setActiveMenu(item.label); showToast(`[${item.label}] 메뉴로 이동했습니다.`); }} 
+              className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-xl text-left transition-all font-semibold text-xs sm:text-sm ${activeMenu === item.label ? 'bg-amber-500/20 text-amber-400 font-bold border-l-4 border-amber-400 shadow-md' : 'text-slate-400 hover:bg-slate-800/60 hover:text-white'}`}
+            >
+              {item.icon}{item.label}
+            </button>
+          ))}
+        </nav>
+        {/* 사이드바 하단 브랜드 배너 */}
+        <div className="p-4 m-3 bg-slate-950/90 rounded-xl border border-slate-800 text-xs text-slate-400 leading-relaxed shadow-inner">
+          <div className="font-bold text-amber-400 mb-1 text-sm">최적의 가격이</div>
+          <div className="font-bold text-white mb-3 text-sm">최대의 수익을 만듭니다.</div>
+          <div className="text-[11px] text-slate-400 font-serif font-bold">PARNAS HOTEL</div>
+          <div className="text-[10px] text-slate-500">AI Revenue Management</div>
+        </div>
+      </aside>
+
+      {/* 우측 메인 콘텐츠 영역 */}
+      <main className="flex-1 flex flex-col h-full overflow-hidden bg-slate-950">
+        
+        {/* 상단 헤더 바 */}
+        <header className="h-16 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-6 shrink-0 shadow-md">
+          <div className="flex items-center gap-3.5">
+            <span className="text-base font-serif font-bold tracking-wider text-white">PARNAS HOTEL</span>
+            <span className="text-slate-700">|</span>
+            <span className="text-slate-300 font-semibold text-sm">AI Revenue Management</span>
+            <span className="bg-amber-500/20 text-amber-400 border border-amber-500/40 px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-sm"><Sparkles size={12}/> Dynamic Pricing</span>
+            <span className="text-slate-400 text-xs hidden xl:inline">데이터로 예측하고, AI가 제안하는 최적의 가격</span>
+          </div>
+          <div className="flex items-center gap-4">
+            {/* 날짜 선택 버튼 */}
+            <div onClick={() => setIsCalendarOpen(true)} className="flex items-center gap-2.5 bg-slate-800 px-4 py-2 rounded-xl text-slate-200 border border-slate-700 cursor-pointer hover:bg-slate-700 transition-all text-xs sm:text-sm shadow-sm font-medium">
+              <CalendarDays size={16} className="text-amber-400" />
+              <span>{dateRangeLabel}</span>
+              <ChevronDown size={16} className="text-slate-400" />
+            </div>
+            {/* 사용자 프로필 및 상태 */}
+            <div className="flex items-center gap-3 pl-4 border-l border-slate-800">
+              <div className="w-8 h-8 rounded-full bg-amber-400/20 border border-amber-400/40 flex items-center justify-center text-amber-400 font-bold text-xs">수</div>
+              <div className="text-xs leading-tight">
+                <div className="font-bold text-slate-200">수익관리팀 (RM)</div>
+                <div className="text-emerald-400 text-[11px] flex items-center gap-1 mt-0.5"><span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> 실시간 분석 중</div>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        {/* 대시보드 메인 본문 (스크롤 가능, 가독성 향상을 위한 여백 및 폰트 조정) */}
+        <div className="flex-1 p-5 flex flex-col gap-5 overflow-y-auto bg-slate-950">
+          
+          {activeMenu === '대시보드' && (
+            <div className="flex-1 flex flex-col gap-5">
+              
+              {/* 상단 5개 요약 카드 (폰트 크기 확대 및 인터랙티브 기능 강화) */}
+              <div className="grid grid-cols-5 gap-4 shrink-0">
+                {/* 1. 예상 매출 */}
+                <div onClick={() => setActiveModal('revenue')} className="bg-slate-900 p-5 rounded-2xl border border-slate-800 cursor-pointer hover:border-emerald-500/60 transition-all shadow-lg group">
+                  <div className="text-xs text-slate-400 mb-1.5 font-semibold flex items-center justify-between"><span className="flex items-center gap-1.5"><DollarSign size={15} className="text-emerald-400"/> 예상 매출</span><ExternalLink size={13} className="text-slate-500 group-hover:text-emerald-400" /></div>
+                  <div className="text-2xl font-black text-white tracking-tight">138,287,500원</div>
+                  <div className="text-xs text-emerald-400 font-bold mt-2 flex items-center gap-1"><TrendingUp size={13}/> ▲ 11.8% (AI 적용 시)</div>
+                </div>
+                {/* 2. 오늘 예상 ADR */}
+                <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800 shadow-lg">
+                  <div className="text-xs text-slate-400 mb-1.5 font-semibold flex items-center gap-1.5"><TagIcon size={15} className="text-blue-400"/> 오늘 예상 ADR</div>
+                  <div className="text-2xl font-black text-white tracking-tight">1,083,000원</div>
+                  <div className="text-xs text-emerald-400 font-bold mt-2 flex items-center gap-1"><TrendingUp size={13}/> ▲ 7.2% 상승</div>
+                </div>
+                {/* 3. 예상 OCC */}
+                <div onClick={() => setActiveModal('occ')} className="bg-slate-900 p-5 rounded-2xl border border-slate-800 cursor-pointer hover:border-purple-500/60 transition-all shadow-lg group">
+                  <div className="text-xs text-slate-400 mb-1.5 font-semibold flex items-center justify-between"><span className="flex items-center gap-1.5"><PieChart size={15} className="text-purple-400"/> 예상 OCC</span><ExternalLink size={13} className="text-slate-500 group-hover:text-purple-400" /></div>
+                  <div className="text-2xl font-black text-white tracking-tight">76%</div>
+                  <div className="text-xs text-rose-400 font-bold mt-2 flex items-center gap-1">▼ 0.8%p 변동</div>
+                </div>
+                {/* 4. RevPAR */}
+                <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800 shadow-lg">
+                  <div className="text-xs text-slate-400 mb-1.5 font-semibold flex items-center gap-1.5"><Zap size={15} className="text-amber-400"/> RevPAR</div>
+                  <div className="text-2xl font-black text-white tracking-tight">823,000원</div>
+                  <div className="text-xs text-emerald-400 font-bold mt-2 flex items-center gap-1"><TrendingUp size={13}/> ▲ 6.1% 성장</div>
+                </div>
+                {/* 5. AI 적용 전/후 효과 */}
+                <div className="bg-gradient-to-br from-indigo-950/80 to-slate-900 p-5 rounded-2xl border border-indigo-500/40 shadow-lg flex flex-col justify-between">
+                  <div className="text-xs text-indigo-300 font-bold flex items-center gap-1.5"><Sparkles size={14} className="text-amber-400"/> AI 적용 전/후 효과</div>
+                  <div className="grid grid-cols-4 gap-1 text-[11px] text-center my-2 font-medium">
+                    <div><div className="text-slate-400 text-[10px]">매출</div><div className="font-bold text-emerald-400">+11.8M</div></div>
+                    <div><div className="text-slate-400 text-[10px]">ADR</div><div className="font-bold text-emerald-400">+7.2%</div></div>
+                    <div><div className="text-slate-400 text-[10px]">OCC</div><div className="font-bold text-rose-400">-0.8%</div></div>
+                    <div><div className="text-slate-400 text-[10px]">RevPAR</div><div className="font-bold text-emerald-400">+6.1%</div></div>
+                  </div>
+                  <div className="text-[10px] text-slate-400 text-right">실시간 최적화 구동중</div>
+                </div>
+              </div>
+
+              {/* 중앙 메인 콘텐츠 그리드 (좌측: 다이내믹 프라이싱 현황 차트 / 우측: AI 추천 가격 카드) */}
+              <div className="grid grid-cols-12 gap-5">
+                
+                {/* 좌측: 객실 타입별 다이내믹 프라이싱 현황 (선 그래프 영역) */}
+                <div className="col-span-8 bg-slate-900 rounded-2xl border border-slate-800 p-6 flex flex-col shadow-xl">
+                  <div className="flex justify-between items-center mb-5">
+                    <div className="flex items-center gap-2.5">
+                      <h2 className="text-sm font-bold text-white uppercase tracking-wide">객실 타입별 다이내믹 프라이싱 현황</h2>
+                      <HelpCircle size={16} className="text-slate-400 cursor-pointer hover:text-white" />
+                    </div>
+                    {/* 객실 필터 체크박스 범례 (클릭 시 토글 기능 연동) */}
+                    <div className="flex items-center gap-5 text-xs font-semibold">
+                      <label className="flex items-center gap-2 cursor-pointer text-cyan-300 hover:text-cyan-200">
+                        <input type="checkbox" checked={roomFilters.deluxe} onChange={() => { setRoomFilters({...roomFilters, deluxe: !roomFilters.deluxe}); showToast('Deluxe Room 차트 표시 여부가 변경되었습니다.'); }} className="accent-cyan-400 rounded w-4 h-4" /> Deluxe Room
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer text-red-400 hover:text-red-300">
+                        <input type="checkbox" checked={roomFilters.junior} onChange={() => { setRoomFilters({...roomFilters, junior: !roomFilters.junior}); showToast('Junior Suite 차트 표시 여부가 변경되었습니다.'); }} className="accent-red-400 rounded w-4 h-4" /> Junior Suite
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer text-sky-400 hover:text-sky-300">
+                        <input type="checkbox" checked={roomFilters.classicRoom} onChange={() => { setRoomFilters({...roomFilters, classicRoom: !roomFilters.classicRoom}); showToast('Classic Room 차트 표시 여부가 변경되었습니다.'); }} className="accent-sky-400 rounded w-4 h-4" /> Classic Room
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer text-white hover:text-slate-200">
+                        <input type="checkbox" checked={roomFilters.classicSuite} onChange={() => { setRoomFilters({...roomFilters, classicSuite: !roomFilters.classicSuite}); showToast('Classic Suite 차트 표시 여부가 변경되었습니다.'); }} className="accent-white rounded w-4 h-4" /> Classic Suite
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* 세련된 선 그래프 컨테이너 */}
+                  <div 
+                    ref={chartContainerRef}
+                    className="h-[310px] border border-slate-800 rounded-xl p-4 relative flex flex-col justify-between bg-slate-950 overflow-hidden shadow-inner"
+                    onMouseLeave={() => setTooltip(null)}
+                  >
+                    
+                    {/* SURGE 팝업 배지 (클릭 시 상세 모달 오픈) */}
+                    <div onClick={() => setActiveModal('recommendation')} className="absolute top-10 right-40 bg-slate-900/95 border border-red-500/80 rounded-xl p-3 shadow-2xl z-30 text-xs backdrop-blur-md cursor-pointer hover:border-red-400 transition-all animate-pulse">
+                      <div className="flex items-center justify-between gap-4 mb-1">
+                        <span className="font-bold text-white text-xs">10/09 (금)</span>
+                        <span className="bg-red-500 text-white font-black px-2 py-0.5 rounded text-[10px]">SURGE</span>
+                      </div>
+                      <div className="text-cyan-300 font-bold text-xs">Deluxe Room</div>
+                      <div className="text-emerald-400 font-bold text-xs">AI 추천가 945,000원 <span className="text-amber-400">(+15.2%)</span></div>
+                    </div>
+
+                    {/* 상단 날짜 가이드 */}
+                    <div className="pl-20 flex justify-between pb-3 border-b border-slate-800 text-xs text-slate-300 font-bold pr-2 bg-slate-900/40 px-3 py-2 rounded-lg">
+                      <span className="text-slate-400 font-medium">📅 타임라인</span>
+                      <div className="flex gap-5">
+                        {dates.map((d, i) => (
+                          <div key={i} className="flex flex-col items-center">
+                            <span className={i === 8 ? 'text-amber-400 font-black bg-amber-500/20 px-1.5 py-0.5 rounded border border-amber-500/40' : 'text-slate-300'}>{d.day}</span>
+                            <span className="text-[10px] text-slate-400 font-medium">{d.week}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="flex-1 flex gap-3 relative h-full mt-2 items-center">
+                      {/* 좌측 Y축 가격 눈금 */}
+                      <div className="w-20 flex flex-col justify-between text-xs text-slate-300 font-mono text-right pr-3 border-r border-slate-800 h-full py-1 font-semibold">
+                        <span className="font-bold text-amber-400">1,600,000원</span>
+                        <span>1,300,000원</span>
+                        <span>1,000,000원</span>
+                        <span>700,000원</span>
+                        <span className="font-bold text-emerald-400">400,000원</span>
+                      </div>
+
+                      {/* SVG 다중 라인 그래프 */}
+                      <div className="flex-1 relative h-full flex items-center">
+                        <div className="absolute inset-0 flex flex-col justify-between opacity-20 pointer-events-none">
+                          {[1,2,3,4,5].map((_, i) => <div key={i} className="w-full border-b border-slate-700"></div>)}
+                        </div>
+                        <svg viewBox="0 0 1000 200" preserveAspectRatio="none" className="w-full h-48 overflow-visible">
+                          {roomFilters.classicSuite && <polyline fill="none" stroke="#ffffff" strokeWidth="2" points="0,50 100,45 200,60 300,40 400,70 500,55 600,45 700,30 800,25 900,40 1000,35" className="opacity-95 hover:opacity-100 cursor-pointer"/>}
+                          {roomFilters.junior && <polyline fill="none" stroke="#f87171" strokeWidth="1.8" points="0,80 100,75 200,90 300,70 400,100 500,85 600,75 700,50 800,45 900,65 1000,60" className="opacity-95 hover:opacity-100 cursor-pointer"/>}
+                          {roomFilters.classicRoom && <polyline fill="none" stroke="#38bdf8" strokeWidth="1.8" points="0,110 100,105 200,120 300,100 400,130 500,115 600,105 700,80 800,75 900,95 1000,90" className="opacity-95 hover:opacity-100 cursor-pointer"/>}
+                          {roomFilters.deluxe && <polyline fill="none" stroke="#22d3ee" strokeWidth="2" points="0,140 100,135 200,150 300,130 400,160 500,145 600,135 700,20 800,105 900,125 1000,120" className="opacity-100 cursor-pointer"/>}
+                        </svg>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-3.5 flex justify-between items-center text-xs text-slate-400">
+                    <span>* 선을 클릭하거나 마우스를 올리면 날짜별 상세 추천 요금을 조회할 수 있습니다.</span>
+                    <span className="font-semibold text-slate-300">최종 동기화: {lastUpdated}</span>
+                  </div>
+                </div>
+
+                {/* 우측: AI 추천 가격 카드 */}
+                <div className="col-span-4 bg-slate-900 rounded-2xl border border-slate-800 p-6 flex flex-col justify-between shadow-xl relative">
+                  <div>
+                    <div className="flex justify-between items-center mb-4">
+                      <h3 className="font-bold text-white text-sm flex items-center gap-2">
+                        <Sparkles size={16} className="text-amber-400"/> AI 추천 가격
+                      </h3>
+                      <span className="text-xs text-slate-400 font-medium">오늘의 최적화 제안</span>
+                    </div>
+
+                    {/* Deluxe Room 10/09 Surge 강조 박스 */}
+                    <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 mb-4 relative overflow-hidden shadow-inner">
+                      <div className="flex justify-between items-start mb-1">
+                        <div>
+                          <div className="text-xs text-slate-400 font-medium">Deluxe Room (10/09)</div>
+                          <div className="text-xl font-black text-white mt-1">945,000원 <span className="text-amber-400 text-sm font-bold">+15.2%</span></div>
+                        </div>
+                        <span className="bg-red-500 text-white font-black px-2.5 py-1 rounded-lg text-xs animate-pulse">SURGE</span>
+                      </div>
+                    </div>
+
+                    {/* 추천 신뢰도 바 */}
+                    <div className="bg-slate-950/80 p-3.5 rounded-xl border border-slate-800 mb-4 flex items-center justify-between">
+                      <div>
+                        <div className="text-xs text-slate-400 font-semibold">추천 신뢰도</div>
+                        <div className="text-sm font-bold text-white mt-0.5">매우 높음 (Optimal)</div>
+                      </div>
+                      <div className="w-11 h-11 rounded-full border-2 border-emerald-400 flex items-center justify-center text-emerald-400 font-bold text-sm bg-emerald-950/40">
+                        92%
+                      </div>
+                    </div>
+
+                    {/* 추천 근거 리스트 */}
+                    <div className="space-y-2.5 text-xs mb-4">
+                      <div className="font-bold text-slate-200 mb-1 text-sm">추천 근거</div>
+                      <div className="flex justify-between items-center text-slate-300"><span>✔ 예약 Pickup 상승</span><span className="font-bold text-emerald-400">+23%</span></div>
+                      <div className="flex justify-between items-center text-slate-300"><span>✔ 예상 수요 증가</span><span className="font-bold text-emerald-400">HIGH</span></div>
+                      <div className="flex justify-between items-center text-slate-300"><span>✔ 경쟁호텔 가격 상승</span><span className="font-bold text-emerald-400">+5%</span></div>
+                      <div className="flex justify-between items-center text-slate-300"><span>✔ 객실 가동률</span><span className="font-bold text-emerald-400">82%</span></div>
+                      <div className="flex justify-between items-center text-slate-300"><span>✔ 이벤트 영향</span><span className="font-bold text-emerald-400">+12%</span></div>
+                    </div>
+
+                    <div className="bg-amber-950/40 border border-amber-900/60 p-3 rounded-xl text-xs text-amber-200 leading-relaxed mb-4">
+                      10/09은 고수요가 예상되어 Deluxe Room 가격을 15% 상향할 것을 권고합니다.
+                    </div>
+                  </div>
+
+                  <button onClick={() => setActiveModal('recommendation')} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl text-xs sm:text-sm shadow-lg transition-all flex items-center justify-center gap-2">
+                    추천안 검토 및 승인하기 →
+                  </button>
+                </div>
+
+              </div>
+
+              {/* 하단 영역 그리드: 객실 타입별 가격 상세 테이블 & What-if 시뮬레이션 */}
+              <div className="grid grid-cols-12 gap-5">
+                
+                {/* 좌측 하단: 객실 타입별 가격 상세 테이블 */}
+                <div className="col-span-8 bg-slate-900 rounded-2xl border border-slate-800 p-6 shadow-xl flex flex-col justify-between">
+                  <div>
+                    <div className="flex justify-between items-center mb-4">
+                      <h3 className="font-bold text-white text-sm">객실 타입별 가격 상세</h3>
+                      <span className="text-xs text-slate-400">실시간 연동 완료</span>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs sm:text-sm">
+                        <thead>
+                          <tr className="border-b border-slate-800 text-slate-400 text-xs font-semibold">
+                            <th className="pb-3">객실 타입</th>
+                            <th className="pb-3">기준가 (현재)</th>
+                            <th className="pb-3">AI 추천가</th>
+                            <th className="pb-3">최종 적용가</th>
+                            <th className="pb-3">변동률</th>
+                            <th className="pb-3">예약률 (OCC)</th>
+                            <th className="pb-3">예상 매출</th>
+                            <th className="pb-3 text-right">상태</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-800/60">
+                          {roomTableData.map((room, idx) => (
+                            <tr key={idx} className="hover:bg-slate-800/40 transition-colors font-medium">
+                              <td className="py-3.5 text-white flex items-center gap-2.5">
+                                <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: room.color }}></span>
+                                {room.type}
+                              </td>
+                              <td className="py-3.5 text-slate-400">{room.base.toLocaleString()}원</td>
+                              <td className="py-3.5 text-amber-400 font-bold">{room.ai.toLocaleString()}원</td>
+                              <td className="py-3.5 text-white font-bold">{room.final.toLocaleString()}원</td>
+                              <td className="py-3.5 text-emerald-400 font-bold">{room.change}</td>
+                              <td className="py-3.5 text-slate-300">{room.occ}</td>
+                              <td className="py-3.5 text-emerald-400 font-semibold">{room.revenue}</td>
+                              <td className="py-3.5 text-right">
+                                <button onClick={() => showToast(`[${room.type}] 가격이 PMS 채널에 동기화되었습니다.`)} className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-2.5 py-1 rounded-lg text-xs shadow-sm transition-all">
+                                  적용
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 우측 하단: What-if 시뮬레이션 */}
+                <div className="col-span-4 bg-slate-900 rounded-2xl border border-slate-800 p-6 flex flex-col justify-between shadow-xl">
+                  <div>
+                    <div className="flex justify-between items-center mb-4">
+                      <h3 className="font-bold text-white text-sm flex items-center gap-2">
+                        <Cpu size={16} className="text-amber-400"/> What-if 시뮬레이션
+                      </h3>
+                      <span className="text-xs text-blue-400 font-semibold cursor-pointer hover:underline" onClick={() => { setWhatIfSlider(15); showToast('시뮬레이션 값이 초기화되었습니다.'); }}>초기화</span>
+                    </div>
+                    
+                    <div className="text-xs text-slate-300 mb-2 font-medium">가격 조정률 슬라이더</div>
+                    <div className="flex items-center gap-4 mb-5">
+                      <input 
+                        type="range" 
+                        min="-20" 
+                        max="30" 
+                        value={whatIfSlider} 
+                        onChange={(e) => setWhatIfSlider(Number(e.target.value))} 
+                        className="w-full accent-amber-500 h-2 bg-slate-800 rounded-lg cursor-pointer" 
+                      />
+                      <span className="font-black text-amber-400 text-sm w-12 text-right">{whatIfSlider >= 0 ? `+${whatIfSlider}%` : `${whatIfSlider}%`}</span>
+                    </div>
+
+                    <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 mb-4 space-y-2.5 shadow-inner">
+                      <div className="text-xs text-slate-400 font-bold uppercase tracking-wider">실시간 연산 시뮬레이션 결과</div>
+                      <div className="flex justify-between items-center text-xs sm:text-sm"><span className="text-slate-400">예상 매출</span><span className="font-bold text-emerald-400">{Math.round(simulatedRevenue/1000000)}M <span className="text-[11px] text-emerald-400 font-semibold">(+ 연동중)</span></span></div>
+                      <div className="flex justify-between items-center text-xs sm:text-sm"><span className="text-slate-400">평균 ADR</span><span className="font-bold text-white">{simulatedAdr.toLocaleString()}원</span></div>
+                      <div className="flex justify-between items-center text-xs sm:text-sm"><span className="text-slate-400">예상 OCC</span><span className="font-bold text-purple-400">{simulatedOcc}%</span></div>
+                      <div className="flex justify-between items-center text-xs sm:text-sm"><span className="text-slate-400">RevPAR</span><span className="font-bold text-emerald-400">{simulatedRevpar.toLocaleString()}원</span></div>
+                    </div>
+
+                    {/* 적용 프로세스 스텝 바 */}
+                    <div className="text-xs text-slate-400 font-bold mb-2">적용 프로세스 단계</div>
+                    <div className="grid grid-cols-4 gap-1.5 text-center text-[10px] font-semibold">
+                      <div className="bg-blue-600 text-white p-1.5 rounded-lg font-bold shadow-sm">1 시뮬레이션</div>
+                      <div className="bg-slate-800 text-slate-300 p-1.5 rounded-lg">2 경영진 검토</div>
+                      <div className="bg-slate-800 text-slate-300 p-1.5 rounded-lg">3 RM 승인</div>
+                      <div className="bg-slate-800 text-slate-300 p-1.5 rounded-lg">4 전체 적용</div>
+                    </div>
+                  </div>
+
+                  <button onClick={handleApplySimulatedChanges} className="mt-5 w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-3 rounded-xl text-xs sm:text-sm shadow-lg transition-all flex items-center justify-center gap-2">
+                    시뮬레이션 결과 즉시 반영하기
+                  </button>
+                </div>
+
+              </div>
+
+              {/* 최하단 그리드: 경쟁호텔 가격 비교 & 채널별 수익성 비교 & 수요 신호 */}
+              <div className="grid grid-cols-12 gap-5 pb-6">
+                
+                {/* 1. 경쟁호텔 가격 비교 (Comp Set) */}
+                <div className="col-span-5 bg-slate-900 rounded-2xl border border-slate-800 p-6 shadow-xl">
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="font-bold text-white text-sm flex items-center gap-2"><Building2 size={16} className="text-amber-400"/> 경쟁호텔 가격 비교 (Comp Set)</h3>
+                    <span className="text-xs text-slate-400 font-medium">상권 실시간 크롤링</span>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs sm:text-sm">
+                      <thead>
+                        <tr className="border-b border-slate-800 text-slate-400 font-semibold text-xs">
+                          <th className="pb-3">호텔명</th>
+                          <th className="pb-3">10/09</th>
+                          <th className="pb-3">평균가</th>
+                          <th className="pb-3">10/10</th>
+                          <th className="pb-3">평균가</th>
+                          <th className="pb-3 text-right">포지션</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800/60 font-medium">
+                        {compSetData.map((row, idx) => (
+                          <tr key={idx} className={row.isMe ? 'bg-amber-500/15 font-bold text-amber-300' : 'text-slate-300'}>
+                            <td className="py-3">{row.hotel}</td>
+                            <td className="py-3">{row.d1}</td>
+                            <td className="py-3 text-slate-400">{row.avg1}</td>
+                            <td className="py-3">{row.d2}</td>
+                            <td className="py-3 text-slate-400">{row.avg2}</td>
+                            <td className="py-3 text-right font-bold text-emerald-400">{row.pos}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* 2. 채널별 수익성 비교 */}
+                <div className="col-span-4 bg-slate-900 rounded-2xl border border-slate-800 p-6 shadow-xl flex flex-col justify-between">
+                  <div>
+                    <div className="flex justify-between items-center mb-4">
+                      <h3 className="font-bold text-white text-sm flex items-center gap-2"><Globe size={16} className="text-blue-400"/> 채널별 수익성 비교</h3>
+                      <span className="text-xs text-slate-400 font-medium">수수료 정산</span>
+                    </div>
+                    <div className="overflow-x-auto mb-4">
+                      <table className="w-full text-left text-xs sm:text-sm">
+                        <thead>
+                          <tr className="border-b border-slate-800 text-slate-400 font-semibold text-xs">
+                            <th className="pb-3">채널명</th>
+                            <th className="pb-3">판매가</th>
+                            <th className="pb-3">수수료</th>
+                            <th className="pb-3 text-right">실수익</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-800/60 font-medium">
+                          {channelData.map((ch, idx) => (
+                            <tr key={idx} className="text-slate-300">
+                              <td className="py-3 font-bold text-white truncate max-w-[130px]">{ch.name}</td>
+                              <td className="py-3">{ch.price}</td>
+                              <td className="py-3 text-rose-400">{ch.commission}</td>
+                              <td className="py-3 text-right font-bold text-emerald-400">{ch.net}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                  <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-800 text-xs text-emerald-400 font-bold flex items-center justify-between shadow-inner">
+                    <span className="flex items-center gap-2"><Check size={14}/> Direct 채널 유입 최적화</span>
+                    <button onClick={() => showToast('공식 홈페이지 다이렉트 프로모션이 활성화되었습니다.')} className="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1 rounded-lg text-xs font-bold transition-all">전환 촉진</button>
+                  </div>
+                </div>
+
+                {/* 3. 수요 신호 (Demand Signal) */}
+                <div className="col-span-3 bg-slate-900 rounded-2xl border border-slate-800 p-6 shadow-xl flex flex-col justify-between">
+                  <div>
+                    <div className="flex justify-between items-center mb-4">
+                      <h3 className="font-bold text-white text-sm flex items-center gap-2"><Zap size={16} className="text-amber-400"/> 수요 신호</h3>
+                      <span className="text-xs text-blue-400 font-semibold cursor-pointer hover:underline" onClick={() => showToast('모든 실시간 수요 신호가 동기화되었습니다.')}>전체 동기화</span>
+                    </div>
+                    <div className="space-y-3">
+                      {demandSignals.map((sig, idx) => (
+                        <div key={idx} className="bg-slate-950 border border-slate-800 p-3 rounded-xl flex justify-between items-center text-xs sm:text-sm">
+                          <span className="text-slate-300 font-medium">{sig.label}</span>
+                          <span className="font-bold text-emerald-400">{sig.value}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+
+            </div>
+          )}
+
+          {/* 타 메뉴 선택 시 렌더링 화면 */}
+          {activeMenu !== '대시보드' && (
+            <div className="flex-1 bg-slate-900 rounded-2xl border border-slate-800 p-12 flex flex-col items-center justify-center text-center shadow-xl my-auto">
+              <Sparkles size={48} className="text-amber-400 mb-4 animate-pulse" />
+              <h2 className="text-xl font-bold text-white mb-2">[{activeMenu}] 메뉴 영역</h2>
+              <p className="text-sm text-slate-400 mb-6 max-w-md">파르나스호텔 AI 수익관리 시스템과 실시간 연동되어 세부 관리 및 설정을 지원합니다.</p>
+              <button onClick={() => setActiveMenu('대시보드')} className="bg-amber-500 hover:bg-amber-400 text-slate-950 px-6 py-3 rounded-xl font-bold text-sm shadow-lg transition-all">대시보드로 돌아가기</button>
+            </div>
+          )}
+
+        </div>
+      </main>
+    </div>
+  );
+}
+
+// 아이콘 헬퍼 컴포넌트
+function TagIcon(props: any) {
+  return (
+    <svg {...props} xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z"></path>
+      <path d="M7 7h.01"></path>
+    </svg>
+  );
+}

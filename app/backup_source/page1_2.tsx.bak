@@ -1,0 +1,936 @@
+"use client";
+
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { LayoutDashboard, Settings, CalendarDays, LineChart as LineChartIcon, Cpu, Bell, ChevronDown, Loader2, PlaneTakeoff, Building2, ShieldAlert, Sliders, Sparkles, X, ExternalLink, Save, CheckCircle2, DollarSign, PieChart, RefreshCcw, Award, Users, Globe, BookOpen } from 'lucide-react';
+
+export default function ParnasPricingDashboard() {
+  // 1. 상태 관리
+  const [activeMenu, setActiveMenu] = useState('대시보드');
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState('방금 전');
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // 캘린더 모달 상태 및 동적 날짜 배열
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+  const [startDate, setStartDate] = useState('2026-10-01');
+  const [endDate, setEndDate] = useState('2026-10-14');
+  const [dateRangeLabel, setDateRangeLabel] = useState('2026.10.01 ~ 10.14 (선택 기간 서지 관제)');
+  const [dates, setDates] = useState(['10.01', '10.02', '10.03', '10.04', '10.05', '10.06', '10.07', '10.08', '10.09', '10.10', '10.11', '10.12', '10.13', '10.14']);
+
+  // 마우스 호버 툴팁 상태 및 컨테이너 참조
+  const [tooltip, setTooltip] = useState<{ visible: boolean; x: number; y: number; title: string; date: string; price: string } | null>(null);
+  const chartContainerRef = useRef<HTMLDivElement>(null);
+
+  // 상단 카드 인터랙티브 팝업 상태
+  const [activeModal, setActiveModal] = useState<'none' | 'revenue' | 'occ' | 'competitor' | 'flight'>('none');
+
+  // 공항 실시간 연동 및 코엑스 MICE 이벤트 가중치 상태 관리
+  const [airportData, setAirportData] = useState({
+    pax: '102,450명/일',
+    flights: '610편착륙',
+    multiplier: 1.0,
+    weightLabel: '기준 인바운드 지수 (1.0x)'
+  });
+
+  // 멤버십 등급
+  const [memberTier, setMemberTier] = useState<'regular' | 'silver' | 'gold' | 'platinum' | 'black'>('gold');
+  const [tierPolicies, setTierPolicies] = useState({
+    regular: { name: '일반 고객 (Non-Member)', discountRate: 0, rewardMultiplier: 1.0, perk: '기본 포인트 적립', targetAudience: '일반 다이렉트 및 신규 유입' },
+    silver: { name: '실버 멤버십 (Silver)', discountRate: -3, rewardMultiplier: 1.5, perk: '객실 요금 3% 우대 할인', targetAudience: '재방문 레저 고객' },
+    gold: { name: '골드 멤버십 (Gold)', discountRate: -7, rewardMultiplier: 2.0, perk: '객실 요금 7% 우대 + 레이트 체크아웃', targetAudience: '상용 비즈니스 우수 고객' },
+    platinum: { name: '플래티넘 멤버십 (Platinum)', discountRate: -12, rewardMultiplier: 3.0, perk: '객실 요금 12% 우대 + 라운지 액세스', targetAudience: '고수익 VIP 비즈니스' },
+    black: { name: 'VIP 블랙 (Black Prestige)', discountRate: -18, rewardMultiplier: 5.0, perk: '전용 스위트 업그레이드 + 18% 할인', targetAudience: '최상위 VVIP 로열티 고객' }
+  });
+
+  const [otaChannels, setOtaChannels] = useState([
+    { name: 'IHG 공식 웹/앱 (Direct)', commission: '0%', margin: '최상 (100% 수취)', status: '실시간 연동중', multiplier: 1.0, strategy: '다이렉트 수수료 절감 및 멤버십 락인' },
+    { name: '네이버 예약 / 로컬', commission: '5.5%', margin: '우수', status: '실시간 연동중', multiplier: 1.02, strategy: '국내 파워 유저 및 검색 광고 연동' },
+    { name: '아고다 / 익스피디아 (Global)', commission: '15.0%', margin: '일반', status: '실시간 연동중', multiplier: 1.05, strategy: '글로벌 인바운드 외국인 관광객 타겟팅' },
+    { name: '야놀자 / 여기어때 (Domestic)', commission: '10.0%', margin: '보통', status: '실시간 연동중', multiplier: 1.03, strategy: '국내 단기 호캉스 및 특가 프로모션' }
+  ]);
+  const [selectedOta, setSelectedOta] = useState('IHG 공식 웹/앱 (Direct)');
+
+  // 시즌 및 이벤트 시나리오 (MICE 변수 포함)
+  const scenarios = {
+    normal: { 
+      id: 'normal', name: '평시 비즈니스 & 레저 (Standard Week)', baseOcc: 76, compPrice: 380000, 
+      competitors: [
+        { name: '조선 팰리스 서울 강남', avgPrice: '380,000원', occ: '75%', position: '역삼동 권역 (하이엔드)' },
+        { name: '오크우드 프리미엄 코엑스', avgPrice: '310,000원', occ: '79%', position: '삼성동 코엑스 단지' },
+        { name: '안다즈 서울 강남', avgPrice: '350,000원', occ: '72%', position: '압구정 권역 (라이프스타일)' }
+      ],
+      revenueBreakdown: { room: '48,500,000원', fnbDining: '28,200,000원', banquetMice: '15,300,000원' },
+      occBreakdown: { totalRooms: '550실', corpBlock: '80실 (법인계약)', memberHold: '50실 (VIP홀딩)', available: '420실', sold: '319실' },
+      baseRevenue: 92000000 
+    },
+    mice: { 
+      id: 'mice', name: '코엑스 대규모 MICE 및 국제회의 시즌 (Level 1)', baseOcc: 95, compPrice: 480000, 
+      competitors: [
+        { name: '조선 팰리스 서울 강남', avgPrice: '480,000원', occ: '95%', position: '역삼동 권역 (하이엔드)' },
+        { name: '오크우드 프리미엄 코엑스', avgPrice: '410,000원', occ: '94%', position: '삼성동 코엑스 단지' },
+        { name: '안다즈 서울 강남', avgPrice: '420,000원', occ: '89%', position: '압구정 권역 (라이프스타일)' }
+      ],
+      revenueBreakdown: { room: '75,000,000원', fnbDining: '35,000,000원', banquetMice: '42,000,000원' },
+      occBreakdown: { totalRooms: '550실', corpBlock: '120실 (법인계약)', memberHold: '40실 (VIP홀딩)', available: '390실', sold: '370실' },
+      baseRevenue: 152000000 
+    },
+    festival: { 
+      id: 'festival', name: '성수기 / 연말 홀리데이 & 페스티벌 시즌', baseOcc: 92, compPrice: 440000, 
+      competitors: [
+        { name: '조선 팰리스 서울 강남', avgPrice: '440,000원', occ: '91%', position: '역삼동 권역 (하이엔드)' },
+        { name: '오크우드 프리미엄 코엑스', avgPrice: '370,000원', occ: '90%', position: '삼성동 코엑스 단지' },
+        { name: '안다즈 서울 강남', avgPrice: '390,000원', occ: '88%', position: '압구정 권역 (라이프스타일)' }
+      ],
+      revenueBreakdown: { room: '68,000,000원', fnbDining: '41,500,000원', banquetMice: '12,000,000원' },
+      occBreakdown: { totalRooms: '550실', corpBlock: '40실 (법인계약)', memberHold: '80실 (VIP홀딩)', available: '430실', sold: '395실' },
+      baseRevenue: 121500000 
+    }
+  };
+  const [currentScenario, setCurrentScenario] = useState('normal');
+
+  // 프라이싱 파라미터 (가드레일 적용)
+  const [minDrop, setMinDrop] = useState(-10);
+  const [maxRise, setMaxRise] = useState(30);
+  const [sensitivity, setSensitivity] = useState<'Low' | 'Mid' | 'High'>('High');
+
+  // 파르나스 객실 상품별 기준 요금 및 브랜드 가치 방어(Floor/Ceiling) 설정
+  const [roomConfigs, setRoomConfigs] = useState([
+    { type: '디럭스 룸 (Deluxe)', basePrice: 450000, minPrice: 300000, maxPrice: 800000 },
+    { type: '클래식 룸 (Classic)', basePrice: 550000, minPrice: 350000, maxPrice: 950000 },
+    { type: '주니어 스위트 (Junior Suite)', basePrice: 900000, minPrice: 650000, maxPrice: 1600000 },
+    { type: '클래식 스위트 (Classic Suite)', basePrice: 1300000, minPrice: 950000, maxPrice: 2400000 }
+  ]);
+
+  const [aiRules, setAiRules] = useState({
+    autoPriceSync: true, corpBlockProtection: true, competitorUnderCutGuard: true, weekendSurgeBoost: true
+  });
+
+  const [metrics, setMetrics] = useState(scenarios['normal']);
+  const [roomRates, setRoomRates] = useState<any[]>([]);
+
+  // 요일 판별 함수
+  const checkWeekend = (dateStr: string) => {
+    const year = startDate.split('-')[0] || new Date().getFullYear().toString();
+    const [m, d] = dateStr.split('.');
+    const dayOfWeek = new Date(`${year}-${m}-${d}`).getDay();
+    return dayOfWeek === 5 || dayOfWeek === 6; 
+  };
+
+  const updateAirportWeight = useCallback((count: number, scenarioId: string) => {
+    let baseMultiplier = 1.0;
+    let paxNum = 102450;
+    let flightNum = 610;
+    let weightDesc = '일반 비즈니스 인바운드 지수 (1.0x)';
+
+    if (scenarioId === 'mice' || count > 10) {
+      baseMultiplier = 1.35; // MICE Level 1 반영 (+35%)
+      paxNum = 138200;
+      flightNum = 740;
+      weightDesc = '코엑스 전관 대형 국제회의/IT 전시회 MICE Level 1 (1.35x)';
+    } else if (scenarioId === 'festival' || count > 7) {
+      baseMultiplier = 1.20;
+      paxNum = 121500;
+      flightNum = 680;
+      weightDesc = '성수기 및 홀리데이 이벤트 수요 지수 (1.20x)';
+    } else {
+      baseMultiplier = 1.05;
+      paxNum = 108200;
+      flightNum = 635;
+      weightDesc = '평시 안정적 인바운드 트래픽 가중치 (1.05x)';
+    }
+
+    setAirportData({
+      pax: `${paxNum.toLocaleString()}명/일`,
+      flights: `${flightNum}편착륙`,
+      multiplier: baseMultiplier,
+      weightLabel: weightDesc
+    });
+  }, []);
+
+  // 💡 [핵심 구현] 4-Step 다이나믹 프라이싱 알고리즘 엔진 ($P_{\text{final}} = P_{\text{base}} \times M_{\text{OCC}} \times M_{\text{Speed}} \times M_{\text{Event}} \times M_{\text{Segment}}$)
+  const applyAI = useCallback(() => {
+    setIsAnalyzing(true);
+    setTimeout(() => {
+      const scenarioData = scenarios[currentScenario as keyof typeof scenarios];
+      let sensitivityMultiplier = sensitivity === 'High' ? 1.35 : sensitivity === 'Low' ? 0.75 : 1.0;
+
+      updateAirportWeight(dates.length, currentScenario);
+
+      const currentTierDiscount = tierPolicies[memberTier].discountRate; 
+      const selectedOtaObj = otaChannels.find(c => c.name === selectedOta);
+      const otaMultiplier = selectedOtaObj ? selectedOtaObj.multiplier : 1.0;
+
+      const adjustedRevenue = scenarioData.baseRevenue * airportData.multiplier * otaMultiplier * (1 + (maxRise * 0.005 * sensitivityMultiplier));
+      setMetrics({ ...scenarioData, baseRevenue: adjustedRevenue });
+
+      const updatedRates = roomConfigs.map((room, roomIdx) => {
+        const newRates = dates.map((dateStr, dIdx) => {
+          const isWeekend = checkWeekend(dateStr); 
+          
+          // Step 2 & Module A: 점유율(OCC) 및 남은 일수(DBA) 가중치 ($M_{\text{OCC}}$)
+          let occMultiplier = 1.0;
+          const currentOcc = scenarioData.baseOcc + (isWeekend ? 10 : 0);
+          if (currentOcc >= 85) occMultiplier = 1.50;
+          else if (currentOcc >= 70) occMultiplier = 1.20;
+          else if (currentOcc >= 50) occMultiplier = 1.05;
+          else occMultiplier = 0.90;
+
+          // Step 2 & Module B: 예약 속도(Pick-up Speed) 가중치 ($M_{\text{Speed}}$)
+          // 최근 예약 폭증 시 Rapid Acceleration 적용 (+15% 부스팅)
+          let speedMultiplier = 1.0;
+          if (currentScenario === 'mice' || dIdx % 3 === 0) {
+            speedMultiplier = 1.15; // Rapid Acceleration
+          }
+
+          // Step 2 & Module C: 외부 이벤트 / MICE 가중치 ($M_{\text{Event}}$)
+          let eventMultiplier = airportData.multiplier;
+
+          // Step 3 & Module D: 채널 및 멤버십 세그먼트 가중치 ($M_{\text{Segment}}$)
+          let segmentMultiplier = otaMultiplier * (1 + currentTierDiscount / 100);
+
+          // 최종 공식: P_final = P_base * M_OCC * M_Speed * M_Event * M_Segment
+          let rawPrice = room.basePrice * occMultiplier * speedMultiplier * eventMultiplier * segmentMultiplier;
+          let finalPrice = Math.round(rawPrice / 10000) * 10000;
+          
+          // Step 4: 가드레일 (Floor / Ceiling 및 스위트 격차 방어 보장)
+          if (roomIdx >= 2) {
+            // 스위트 객실은 클래식 룸 대비 최소 1.5배 이상 스프레드 보장
+            const classicBase = roomConfigs[1].basePrice;
+            const minSuitePrice = Math.round(classicBase * (roomIdx === 2 ? 1.5 : 2.0) / 10000) * 10000;
+            if (finalPrice < minSuitePrice) finalPrice = minSuitePrice;
+          }
+
+          if (finalPrice > room.maxPrice) finalPrice = room.maxPrice;
+          if (finalPrice < room.minPrice) finalPrice = room.minPrice;
+
+          return { date: dateStr, rawPrice: finalPrice, price: finalPrice.toLocaleString() + '원' };
+        });
+        return { type: room.type, basePrice: room.basePrice, rates: newRates };
+      });
+
+      setRoomRates(updatedRates);
+      const now = new Date();
+      setLastUpdated(`${now.getHours()}:${now.getMinutes()}:${now.getSeconds()}`);
+      setIsAnalyzing(false);
+      showToast('파르나스 4-Step 다이나믹 프라이싱 알고리즘이 실시간 적용되었습니다!');
+    }, 400);
+  }, [currentScenario, roomConfigs, sensitivity, dates, maxRise, minDrop, memberTier, selectedOta, otaChannels, airportData.multiplier, updateAirportWeight]);
+
+  useEffect(() => { 
+    if (dates.length > 0) {
+      applyAI();
+    }
+  }, [dates, currentScenario, sensitivity, memberTier, selectedOta, applyAI]);
+
+  const handleDateApply = () => {
+    if (!startDate || !endDate) {
+      showToast('시작일과 종료일을 올바르게 선택해주세요.');
+      return;
+    }
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    if (start > end) {
+      showToast('종료일은 시작일보다 빠를 수 없습니다.');
+      return;
+    }
+
+    const newDates = [];
+    let current = new Date(start);
+    while (current <= end && newDates.length < 31) {
+      const m = String(current.getMonth() + 1).padStart(2, '0');
+      const d = String(current.getDate()).padStart(2, '0');
+      newDates.push(`${m}.${d}`);
+      current.setDate(current.getDate() + 1);
+    }
+    
+    if (newDates.length === 0) {
+      const m = String(start.getMonth() + 1).padStart(2, '0');
+      const d = String(start.getDate()).padStart(2, '0');
+      newDates.push(`${m}.${d}`);
+    }
+    
+    setDates(newDates);
+    const startDisplay = startDate.replace(/-/g, '.');
+    const endDisplay = endDate.replace(/-/g, '.');
+    setDateRangeLabel(`${startDisplay} ~ ${endDisplay} (${newDates.length}일 관제)`);
+    setIsCalendarOpen(false);
+    showToast(`선택 기간(${newDates.length}일) 동안의 MICE 가중치와 서지 차트가 갱신되었습니다.`);
+  };
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  // Y축 스케일 동기화
+  const allCurrentPrices = roomRates.length > 0 ? roomRates.flatMap(r => r.rates.map((x: any) => x.rawPrice)) : [350000, 2000000];
+  const rawMinPrice = Math.min(...allCurrentPrices);
+  const rawMaxPrice = Math.max(...allCurrentPrices);
+  
+  const minPriceVal = Math.floor(rawMinPrice / 100000) * 100000;
+  const maxPriceVal = Math.ceil(rawMaxPrice / 100000) * 100000;
+  const priceRange = maxPriceVal - minPriceVal || 200000;
+
+  const yAxisTicks = [
+    maxPriceVal,
+    Math.round(minPriceVal + priceRange * 0.8),
+    Math.round(minPriceVal + priceRange * 0.6),
+    Math.round(minPriceVal + priceRange * 0.4),
+    Math.round(minPriceVal + priceRange * 0.2),
+    minPriceVal
+  ];
+
+  const menuItems = [
+    { icon: <LayoutDashboard size={16} />, label: '대시보드' },
+    { icon: <BookOpen size={16} />, label: '알고리즘 가이드' },
+    { icon: <Sliders size={16} />, label: '요금 설정' },
+    { icon: <CalendarDays size={16} />, label: '예약 현황' },
+    { icon: <LineChartIcon size={16} />, label: '시장 분석' },
+    { icon: <Sparkles size={16} />, label: 'AI 최적화 룰' },
+    { icon: <ShieldAlert size={16} />, label: '시스템 설정' },
+  ];
+
+  return (
+    <div className="flex h-screen w-screen overflow-hidden bg-slate-950 text-slate-100 font-sans text-xs select-none relative">
+      
+      {toastMessage && (
+        <div className="absolute top-16 right-6 bg-slate-900 text-amber-400 border border-amber-500/40 px-4 py-2.5 rounded-lg shadow-2xl z-50 flex items-center gap-2 animate-in fade-in">
+          <CheckCircle2 size={16} className="text-amber-400" />
+          <span className="font-medium text-xs">{toastMessage}</span>
+        </div>
+      )}
+
+      {/* 캘린더 모달 */}
+      {isCalendarOpen && (
+        <div className="absolute inset-0 bg-black/70 backdrop-blur-xs z-50 flex items-center justify-center">
+          <div className="bg-slate-900 border border-slate-800 rounded-xl shadow-2xl w-[400px] p-6 flex flex-col gap-4 animate-in zoom-in-95">
+            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+              <h3 className="font-bold text-white flex items-center gap-2 text-sm"><CalendarDays size={18} className="text-amber-400"/> 코엑스 MICE 및 기간 설정</h3>
+              <button onClick={() => setIsCalendarOpen(false)} className="text-slate-400 hover:text-white"><X size={18} /></button>
+            </div>
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="block text-slate-400 font-medium mb-1">관제 시작일 (Start Date)</label>
+                <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white font-bold outline-none focus:border-amber-500" />
+              </div>
+              <div>
+                <label className="block text-slate-400 font-medium mb-1">관제 종료일 (End Date)</label>
+                <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white font-bold outline-none focus:border-amber-500" />
+              </div>
+            </div>
+            <div className="pt-2 border-t border-slate-800 flex gap-2 justify-end">
+              <button onClick={() => setIsCalendarOpen(false)} className="px-4 py-2 bg-slate-800 text-slate-300 rounded-lg font-bold hover:bg-slate-700">취소</button>
+              <button onClick={handleDateApply} className="px-5 py-2 bg-amber-500 text-slate-950 rounded-lg font-bold hover:bg-amber-400 shadow-md">적용 및 알고리즘 연동</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 매출 팝업 */}
+      {activeModal === 'revenue' && (
+        <div className="absolute inset-0 bg-black/70 backdrop-blur-xs z-50 flex items-center justify-center">
+          <div className="bg-slate-900 border border-slate-800 rounded-xl shadow-2xl w-[520px] p-6 flex flex-col gap-4 animate-in zoom-in-95">
+            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+              <h3 className="font-bold text-white flex items-center gap-2 text-sm"><DollarSign size={18} className="text-amber-400"/> 전사 예상 통합 매출 상세 분석</h3>
+              <button onClick={() => setActiveModal('none')} className="text-slate-400 hover:text-white"><X size={18} /></button>
+            </div>
+            <div className="space-y-3 text-xs">
+              <div className="bg-amber-950/40 border border-amber-800/60 rounded-xl p-4 text-amber-200 flex justify-between items-center">
+                <div><div className="font-bold text-sm">알고리즘 산출 총 예상 매출</div><div className="text-[10px] text-amber-400">채널: {selectedOta} | 멤버십: {tierPolicies[memberTier].name}</div></div>
+                <div className="text-xl font-black text-amber-400">{Math.round(metrics.baseRevenue).toLocaleString()}원</div>
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="bg-slate-950 border border-slate-800 p-3 rounded-lg"><div className="text-slate-400 mb-1">객실 숙박 (Room)</div><div className="font-bold text-white text-sm">{metrics.revenueBreakdown.room}</div></div>
+                <div className="bg-slate-950 border border-slate-800 p-3 rounded-lg"><div className="text-slate-400 mb-1">식음 다이닝 (F&B)</div><div className="font-bold text-white text-sm">{metrics.revenueBreakdown.fnbDining}</div></div>
+                <div className="bg-slate-950 border border-slate-800 p-3 rounded-lg"><div className="text-slate-400 mb-1">연회 및 MICE</div><div className="font-bold text-white text-sm">{metrics.revenueBreakdown.banquetMice}</div></div>
+              </div>
+            </div>
+            <div className="pt-2 border-t border-slate-800 flex justify-end">
+              <button onClick={() => setActiveModal('none')} className="bg-amber-500 text-slate-950 px-5 py-2 rounded-lg font-bold text-xs">확인 완료</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 가동률 팝업 */}
+      {activeModal === 'occ' && (
+        <div className="absolute inset-0 bg-black/70 backdrop-blur-xs z-50 flex items-center justify-center">
+          <div className="bg-slate-900 border border-slate-800 rounded-xl shadow-2xl w-[520px] p-6 flex flex-col gap-4 animate-in zoom-in-95">
+            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+              <h3 className="font-bold text-white flex items-center gap-2 text-sm"><PieChart size={18} className="text-amber-400"/> 객실 실질 가동률 (OCC) 및 팩터</h3>
+              <button onClick={() => setActiveModal('none')} className="text-slate-400 hover:text-white"><X size={18} /></button>
+            </div>
+            <div className="space-y-3 text-xs">
+              <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 flex justify-between items-center">
+                <div><div className="font-bold text-white text-sm">현재 실질 가동률 (OCC)</div><div className="text-[10px] text-slate-400">선택 시나리오: {metrics.name}</div></div>
+                <div className="text-2xl font-black text-amber-400">{metrics.baseOcc}%</div>
+              </div>
+            </div>
+            <div className="pt-2 border-t border-slate-800 flex justify-end">
+              <button onClick={() => setActiveModal('none')} className="bg-amber-500 text-slate-950 px-5 py-2 rounded-lg font-bold text-xs">확인 완료</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 경쟁사 팝업 */}
+      {activeModal === 'competitor' && (
+        <div className="absolute inset-0 bg-black/70 backdrop-blur-xs z-50 flex items-center justify-center">
+          <div className="bg-slate-900 border border-slate-800 rounded-xl shadow-2xl w-[560px] p-6 flex flex-col gap-4 animate-in zoom-in-95">
+            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+              <h3 className="font-bold text-white flex items-center gap-2 text-sm"><Building2 size={18} className="text-amber-400"/> 강남권 경쟁사(컴프세트) 가격 비교</h3>
+              <button onClick={() => setActiveModal('none')} className="text-slate-400 hover:text-white"><X size={18} /></button>
+            </div>
+            <div className="space-y-3 text-xs">
+              <div className="space-y-2">
+                {metrics.competitors.map((comp, i) => (
+                  <div key={i} className="bg-slate-950 border border-slate-800 p-3.5 rounded-xl flex justify-between items-center">
+                    <div>
+                      <div className="font-bold text-white text-xs">{comp.name}</div>
+                      <div className="text-[10px] text-slate-400">{comp.position}</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-black text-amber-400 text-xs">{comp.avgPrice}</div>
+                      <div className="text-[10px] text-emerald-400">예상 점유율: {comp.occ}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="pt-2 border-t border-slate-800 flex justify-end">
+              <button onClick={() => setActiveModal('none')} className="bg-amber-500 text-slate-950 px-5 py-2 rounded-lg font-bold text-xs">확인 완료</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 공항/MICE 팝업 */}
+      {activeModal === 'flight' && (
+        <div className="absolute inset-0 bg-black/70 backdrop-blur-xs z-50 flex items-center justify-center">
+          <div className="bg-slate-900 border border-slate-800 rounded-xl shadow-2xl w-[500px] p-6 flex flex-col gap-4 animate-in zoom-in-95">
+            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+              <h3 className="font-bold text-white flex items-center gap-2 text-sm"><PlaneTakeoff size={18} className="text-amber-400"/> 코엑스 MICE 및 외부 수요 지수 상세</h3>
+              <button onClick={() => setActiveModal('none')} className="text-slate-400 hover:text-white"><X size={18} /></button>
+            </div>
+            <div className="space-y-3 text-xs">
+              <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 flex justify-between items-center">
+                <div><div className="font-bold text-white">외부 이벤트 / MICE 지수 ($M_{\text{Event}}$)</div><div className="text-[10px] text-slate-400">{airportData.weightLabel}</div></div>
+                <div className="text-lg font-black text-amber-400">x{airportData.multiplier}</div>
+              </div>
+            </div>
+            <div className="pt-2 border-t border-slate-800 flex justify-end">
+              <button onClick={() => setActiveModal('none')} className="bg-amber-500 text-slate-950 px-5 py-2 rounded-lg font-bold text-xs">확인 완료</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 좌측 사이드바 */}
+      <aside className="w-60 bg-slate-900 text-slate-300 border-r border-slate-800 flex flex-col shrink-0">
+        <div className="p-4 border-b border-slate-800 flex flex-col items-center justify-center text-center gap-1.5 bg-slate-950/60">
+          <div className="w-9 h-9 rounded-full border border-amber-400/60 flex items-center justify-center text-amber-400 font-serif font-bold text-lg tracking-tighter bg-amber-400/10 shadow-inner">P</div>
+          <div><div className="text-white font-serif font-bold tracking-widest text-xs">PARNAS HOTEL</div><div className="text-[9px] text-amber-400 font-sans tracking-wider uppercase mt-0.5">Dynamic Pricing Engine</div></div>
+        </div>
+        <div className="px-4 pt-4 pb-1 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Main Menu</div>
+        <nav className="flex-1 px-2 space-y-1">
+          {menuItems.map((item) => (
+            <button key={item.label} onClick={() => setActiveMenu(item.label)} className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-left transition-all font-medium ${activeMenu === item.label ? 'bg-amber-500/15 text-amber-400 font-bold border-l-2 border-amber-400' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>
+              {item.icon}{item.label}
+            </button>
+          ))}
+        </nav>
+        <div className="p-3 m-3 bg-slate-800/40 rounded-lg border border-slate-700/40 text-[11px] text-slate-400"><div className="font-bold text-slate-300 mb-0.5">4-Step 알고리즘</div><div>코엑스 MICE 및 OCC 연동</div></div>
+      </aside>
+
+      {/* 우측 메인 콘텐츠 영역 */}
+      <main className="flex-1 flex flex-col h-full overflow-hidden bg-slate-950">
+        <header className="h-13 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-6 shrink-0">
+          <h1 className="text-xs font-bold text-slate-200 flex items-center gap-2">
+            <span className="text-base font-serif tracking-tight text-white">PARNAS HOTEL - 수요대응 다이나믹 프라이싱 관제</span>
+            <span className="text-slate-600">|</span>
+            <span className="text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded font-semibold border border-amber-500/20">{activeMenu}</span>
+            {isAnalyzing && <span className="text-[10px] font-normal text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full animate-pulse flex items-center gap-1"><Loader2 size={10} className="animate-spin" /> 알고리즘 연산 중...</span>}
+          </h1>
+          <div className="flex items-center gap-4">
+            <div onClick={() => setIsCalendarOpen(true)} className="flex items-center gap-2 bg-slate-800 px-3 py-1.5 rounded-md text-slate-200 border border-slate-700 cursor-pointer hover:bg-slate-700 transition-all">
+              <CalendarDays size={14} className="text-amber-400" />
+              <span className="font-semibold">{dateRangeLabel}</span>
+              <ChevronDown size={14} className="text-slate-400" />
+            </div>
+            <div className="flex items-center gap-2 pl-4 border-l border-slate-800">
+              <div className="w-7 h-7 rounded-full bg-amber-400/20 border border-amber-400/40 flex items-center justify-center text-amber-400 font-bold text-[11px]">RM</div>
+              <div className="text-[11px] text-right leading-tight"><div className="font-bold text-slate-200">수익관리팀 (RM)</div><div className="text-slate-400">실시간 관제센터</div></div>
+            </div>
+          </div>
+        </header>
+
+        <div className="flex-1 p-4 flex gap-4 overflow-hidden bg-slate-950">
+          
+          {activeMenu === '대시보드' && (
+            <>
+              <div className="flex-1 flex flex-col gap-3 h-full overflow-hidden">
+                {/* 상단 4개 카드 */}
+                <div className="grid grid-cols-4 gap-3 shrink-0">
+                   <div onClick={() => setActiveModal('revenue')} className="bg-slate-900 p-3.5 rounded-lg border border-slate-800 cursor-pointer hover:border-amber-500/60 transition-all shadow-md group">
+                      <div className="text-[11px] text-slate-400 mb-0.5 font-medium flex items-center justify-between"><span className="flex items-center gap-1"><DollarSign size={12} className="text-amber-400"/> 예상 통합 매출</span><ExternalLink size={12} className="text-slate-500 group-hover:text-amber-400" /></div>
+                      <div className="text-lg font-black text-amber-400 tracking-tight mt-1">{Math.round(metrics.baseRevenue).toLocaleString()}원</div>
+                   </div>
+                   <div onClick={() => setActiveModal('occ')} className="bg-slate-900 p-3.5 rounded-lg border border-slate-800 cursor-pointer hover:border-amber-500/60 transition-all shadow-md group">
+                      <div className="text-[11px] text-slate-400 mb-0.5 font-medium flex items-center justify-between"><span className="flex items-center gap-1"><PieChart size={12} className="text-amber-400"/> 실질 가동률</span><ExternalLink size={12} className="text-slate-500 group-hover:text-amber-400" /></div>
+                      <div className="text-lg font-bold text-white mt-1">{metrics.baseOcc}%</div>
+                   </div>
+                   <div onClick={() => setActiveModal('competitor')} className="bg-slate-900 p-3.5 rounded-lg border border-slate-800 cursor-pointer hover:border-amber-500/60 transition-all shadow-md group">
+                      <div className="text-[11px] text-slate-400 mb-0.5 font-medium flex items-center justify-between"><span className="flex items-center gap-1"><Building2 size={12} className="text-amber-400"/> 조선팰리스 비교</span><ExternalLink size={12} className="text-slate-500 group-hover:text-amber-400" /></div>
+                      <div className="text-lg font-bold text-white mt-1">{metrics.competitors[0].avgPrice}</div>
+                   </div>
+                   <div onClick={() => setActiveModal('flight')} className="bg-slate-900 p-3.5 rounded-lg border border-slate-800 cursor-pointer hover:border-amber-500/60 transition-all shadow-md group">
+                      <div className="text-[11px] text-slate-400 mb-0.5 font-medium flex items-center justify-between"><span className="flex items-center gap-1"><PlaneTakeoff size={12} className="text-amber-400"/> MICE 이벤트 지수</span><ExternalLink size={12} className="text-slate-500 group-hover:text-amber-400" /></div>
+                      <div className="text-xs font-bold text-emerald-400 mt-1 truncate">MICE Level 1 (x{airportData.multiplier})</div>
+                   </div>
+                </div>
+
+                <div className="flex-1 bg-slate-900 rounded-lg border border-slate-800 p-4 flex flex-col overflow-hidden shadow-xl">
+                  <div className="flex justify-between items-center mb-3 shrink-0">
+                    <div>
+                      <h2 className="text-xs font-bold text-white uppercase tracking-wide flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
+                        파르나스 객실별 알고리즘 서지 패턴 관제 [{selectedOta} | {tierPolicies[memberTier].name}]
+                      </h2>
+                    </div>
+                    {/* 범례 */}
+                    <div className="flex items-center gap-3 text-[11px] font-semibold">
+                      <div className="flex items-center gap-1"><div className="w-3 h-0.5 bg-white"></div><span className="text-slate-300">클래식 스위트</span></div>
+                      <div className="flex items-center gap-1"><div className="w-3 h-0.5 bg-red-400"></div><span className="text-slate-300">주니어 스위트</span></div>
+                      <div className="flex items-center gap-1"><div className="w-3 h-0.5 bg-sky-400"></div><span className="text-slate-300">클래식 룸</span></div>
+                      <div className="flex items-center gap-1"><div className="w-3 h-0.5 bg-cyan-300"></div><span className="text-slate-300">디럭스 룸</span></div>
+                    </div>
+                  </div>
+
+                  <div 
+                    ref={chartContainerRef}
+                    className="flex-1 min-h-[310px] border border-slate-800 rounded-md p-3 relative flex flex-col justify-between bg-slate-950 overflow-hidden shadow-inner"
+                    onMouseLeave={() => setTooltip(null)}
+                  >
+                    
+                    {tooltip && tooltip.visible && (
+                      <div 
+                        className="absolute z-40 bg-slate-900/95 border border-amber-500/70 text-white px-3.5 py-2.5 rounded-xl shadow-2xl pointer-events-none text-[11px] flex flex-col gap-1 backdrop-blur-md transition-all duration-75 ease-out"
+                        style={{ left: Math.min(Math.max(20, tooltip.x - 40), 720), top: Math.max(10, tooltip.y - 85) }}
+                      >
+                        <div className="font-bold text-amber-400 flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
+                          {tooltip.title}
+                        </div>
+                        <div className="text-slate-300">관제 일자: <span className="font-semibold text-white">2026.{tooltip.date}</span></div>
+                        <div className="text-slate-300">알고리즘 산출 요금: <span className="font-black text-emerald-400 text-xs">{tooltip.price}</span></div>
+                      </div>
+                    )}
+
+                    <div className="pl-16 flex justify-between pb-2 border-b border-slate-800 text-[10px] text-amber-300 font-bold pr-1 overflow-x-auto bg-slate-900/40 px-2 py-1.5 rounded">
+                      <span className="text-slate-400 font-semibold">📅 일별 타임라인:</span>
+                      <div className="flex gap-4">
+                        {dates.map((d, i) => (
+                          <span key={i} className={checkWeekend(d) ? 'text-amber-400 font-black bg-amber-500/20 px-1.5 py-0.5 rounded whitespace-nowrap border border-amber-500/40' : 'text-slate-300 whitespace-nowrap'}>{d}</span>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="flex-1 flex gap-2 relative h-full mt-2 items-center">
+                      
+                      <div className="w-20 flex flex-col justify-between text-[10px] text-slate-300 font-mono text-right pr-2 border-r border-slate-800 h-full py-1 shrink-0 select-none">
+                        <span className="font-bold text-amber-400">{yAxisTicks[0].toLocaleString()}원</span>
+                        <span>{yAxisTicks[1].toLocaleString()}원</span>
+                        <span>{yAxisTicks[2].toLocaleString()}원</span>
+                        <span>{yAxisTicks[3].toLocaleString()}원</span>
+                        <span>{yAxisTicks[4].toLocaleString()}원</span>
+                        <span className="font-bold text-emerald-400">{yAxisTicks[5].toLocaleString()}원</span>
+                      </div>
+
+                      <div className="flex-1 relative flex flex-col justify-between h-full">
+                        
+                        <div className="absolute inset-0 px-2 flex flex-col justify-between pointer-events-none opacity-20">
+                          {[1, 2, 3, 4, 5, 6].map((_, i) => (
+                            <div key={i} className="w-full border-b border-slate-800"></div>
+                          ))}
+                        </div>
+
+                        <div className="relative w-full h-full flex items-center justify-center my-auto">
+                          <svg viewBox="0 0 1000 200" preserveAspectRatio="none" className="w-full h-48 overflow-visible">
+                            {roomRates.length > 0 && (() => {
+                              const getSvgPoints = (roomIdx: number) => {
+                                return dates.map((dateStr, i) => {
+                                  const rateObj = roomRates[roomIdx]?.rates[i];
+                                  const calculatedPrice = rateObj ? rateObj.rawPrice : 450000;
+                                  
+                                  const x = (i / (dates.length - 1 || 1)) * 1000;
+                                  const normalizedY = 200 - ((calculatedPrice - minPriceVal) / priceRange) * 200;
+                                  return `${x},${Math.max(2, Math.min(198, normalizedY))}`;
+                                }).join(' ');
+                              };
+
+                              const lines = [
+                                { title: '클래식 스위트 (Classic Suite)', points: getSvgPoints(3), color: '#ffffff', width: '1.4' },
+                                { title: '주니어 스위트 (Junior Suite)', points: getSvgPoints(2), color: '#f87171', width: '1.2' },
+                                { title: '클래식 룸 (Classic Room)', points: getSvgPoints(1), color: '#38bdf8', width: '1.2' },
+                                { title: '디럭스 룸 (Deluxe Room)', points: getSvgPoints(0), color: '#22d3ee', width: '1.2' },
+                              ];
+
+                              return lines.map((line, lIdx) => {
+                                const pts = line.points.split(' ').map(p => {
+                                  const [cx, cy] = p.split(',').map(Number);
+                                  return { cx, cy };
+                                });
+
+                                return (
+                                  <g key={lIdx}>
+                                    <polyline
+                                      fill="none"
+                                      stroke={line.color}
+                                      strokeWidth={line.width}
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      points={line.points}
+                                      className="transition-all duration-300 opacity-90 hover:opacity-100"
+                                    />
+                                    {pts.map((pt, pIdx) => {
+                                      const currentDateStr = dates[pIdx];
+                                      const actualRateObj = roomRates[3 - lIdx]?.rates[pIdx];
+                                      const dispPrice = actualRateObj ? actualRateObj.price : '450,000원';
+
+                                      return (
+                                        <circle
+                                          key={pIdx}
+                                          cx={pt.cx}
+                                          cy={pt.cy}
+                                          r="4"
+                                          fill={line.color}
+                                          className="cursor-pointer transition-transform hover:scale-150 shadow-md"
+                                          onMouseMove={(e) => {
+                                            if (chartContainerRef.current) {
+                                              const rect = chartContainerRef.current.getBoundingClientRect();
+                                              setTooltip({
+                                                visible: true,
+                                                x: e.clientX - rect.left,
+                                                y: e.clientY - rect.top,
+                                                title: line.title,
+                                                date: currentDateStr,
+                                                price: dispPrice
+                                              });
+                                            }
+                                          }}
+                                        />
+                                      );
+                                    })}
+                                  </g>
+                                );
+                              });
+                            })()}
+                          </svg>
+                        </div>
+
+                      </div>
+                    </div>
+
+                  </div>
+
+                  <div className="mt-3 flex justify-between items-center text-[11px] text-slate-400 shrink-0">
+                    <span>* 4-Step 다이나믹 프라이싱 공식($P_{\text{final}}$) 및 스위트 브랜드 격차 방어가 실시간 연동되어 관제됩니다.</span>
+                    <span className="font-bold text-slate-200">최종 동기화: {lastUpdated}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 우측 제어 패널 */}
+              <div className="w-80 shrink-0 flex flex-col gap-3 h-full overflow-hidden">
+                <div className="bg-slate-900 rounded-lg border border-slate-800 p-4 shrink-0 border-l-4 border-l-blue-500">
+                  <h3 className="font-bold text-white mb-2 flex items-center gap-1.5 text-xs">
+                    <Globe size={14} className="text-blue-400"/> OTA 채널 실시간 연동
+                  </h3>
+                  <select 
+                    value={selectedOta} 
+                    onChange={(e) => setSelectedOta(e.target.value)}
+                    className="w-full border border-slate-700 rounded p-2 text-xs text-white font-bold bg-slate-800 focus:outline-none cursor-pointer mb-2"
+                  >
+                    {otaChannels.map((ota) => (
+                      <option key={ota.name} value={ota.name}>
+                        {ota.name} (수수료 {ota.commission})
+                      </option>
+                    ))}
+                  </select>
+                  <div className="text-[10px] text-slate-400 bg-slate-950 p-2 rounded border border-slate-800 flex justify-between items-center">
+                    <span>전략:</span>
+                    <span className="font-bold text-emerald-400 truncate max-w-[190px]">{otaChannels.find(c => c.name === selectedOta)?.strategy}</span>
+                  </div>
+                </div>
+
+                <div className="bg-slate-900 rounded-lg border border-slate-800 p-4 shrink-0 border-l-4 border-l-amber-500">
+                  <h3 className="font-bold text-white mb-2 flex items-center gap-1.5 text-xs">
+                    <Award size={14} className="text-amber-400"/> 파르나스 리워즈 멤버십 등급
+                  </h3>
+                  <select 
+                    value={memberTier} 
+                    onChange={(e) => setMemberTier(e.target.value as any)}
+                    className="w-full border border-slate-700 rounded p-2 text-xs text-white font-bold bg-slate-800 focus:outline-none cursor-pointer mb-2"
+                  >
+                    {Object.entries(tierPolicies).map(([key, policy]) => (
+                      <option key={key} value={key}>
+                        {policy.name} ({policy.discountRate === 0 ? '정가 적용' : `${policy.discountRate}% 우대 할인`})
+                      </option>
+                    ))}
+                  </select>
+                  <div className="text-[10px] text-slate-400 bg-slate-950 p-2 rounded border border-slate-800">
+                    <span className="font-bold text-slate-300">타겟:</span> {tierPolicies[memberTier].targetAudience}
+                  </div>
+                </div>
+
+                <div className="bg-slate-900 rounded-lg border border-slate-800 p-4 shrink-0">
+                  <h3 className="font-bold text-white mb-2 flex items-center gap-1.5 text-xs">
+                    <CalendarDays size={14} className="text-amber-400"/> 호텔 수요 이벤트 시나리오
+                  </h3>
+                  <select 
+                    value={currentScenario} 
+                    onChange={(e) => setCurrentScenario(e.target.value)}
+                    className="w-full border border-slate-700 rounded p-2 text-xs text-white font-bold bg-slate-800 focus:outline-none cursor-pointer"
+                  >
+                    {Object.values(scenarios).map(sc => <option key={sc.id} value={sc.id}>{sc.name}</option>)}
+                  </select>
+                </div>
+
+                <div className="bg-slate-900 rounded-lg border border-slate-800 p-4 flex-1 flex flex-col justify-between relative overflow-hidden">
+                  <div>
+                    <h3 className="font-bold text-white mb-3.5 flex items-center gap-1.5 text-xs">
+                      <Settings size={14} className="text-amber-400"/> 프라이싱 알고리즘 파라미터
+                    </h3>
+                    <div className="mb-4">
+                      <div className="flex justify-between mb-1 text-[11px]">
+                        <span className="text-slate-400 font-medium">하한선 방어 (Floor Price)</span><span className="font-bold text-slate-200">{minDrop}%</span>
+                      </div>
+                      <input type="range" min="-30" max="0" value={minDrop} onChange={(e) => setMinDrop(Number(e.target.value))} className="w-full accent-amber-500 h-1.5 bg-slate-800 rounded cursor-pointer" />
+                    </div>
+                    <div className="mb-4">
+                      <div className="flex justify-between mb-1 text-[11px]">
+                        <span className="text-slate-400 font-medium">상한선 프리미엄 (Max Cap)</span><span className="font-bold text-amber-400">+{maxRise}%</span>
+                      </div>
+                      <input type="range" min="0" max="100" value={maxRise} onChange={(e) => setMaxRise(Number(e.target.value))} className="w-full accent-amber-500 h-1.5 bg-slate-800 rounded cursor-pointer" />
+                    </div>
+                    <div className="mb-2">
+                      <div className="text-[11px] text-slate-400 font-medium mb-1.5">AI 수요 반응 민감도 (Sensitivity)</div>
+                      <div className="flex gap-1.5">
+                        {(['Low', 'Mid', 'High'] as const).map(level => (
+                          <button key={level} onClick={() => setSensitivity(level)} className={`flex-1 py-1.5 text-[11px] font-bold rounded border transition-all ${sensitivity === level ? 'bg-amber-500 text-slate-950 border-amber-500 shadow-lg' : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'}`}>
+                            {level}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex gap-2 pt-3 border-t border-slate-800">
+                    <button onClick={() => { setMinDrop(-10); setMaxRise(30); setSensitivity('High'); setCurrentScenario('normal'); setMemberTier('gold'); setSelectedOta('IHG 공식 웹/앱 (Direct)'); }} className="flex-1 bg-slate-800 border border-slate-700 text-slate-300 py-2 rounded text-xs font-bold hover:bg-slate-700">초기화</button>
+                    <button onClick={applyAI} className="flex-[2] flex items-center justify-center gap-1.5 bg-amber-500 text-slate-950 py-2 rounded text-xs font-bold hover:bg-amber-400 shadow-md">
+                      <Sparkles size={14} className="text-slate-950" /> 알고리즘 재연산
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* 알고리즘 가이드 메뉴 신설 */}
+          {activeMenu === '알고리즘 가이드' && (
+            <div className="flex-1 bg-slate-900 rounded-lg border border-slate-800 p-6 flex flex-col gap-6 overflow-auto shadow-xl">
+              <div className="border-b border-slate-800 pb-4 flex items-center justify-between">
+                <div>
+                  <h2 className="text-base font-bold text-white flex items-center gap-2">
+                    <BookOpen size={20} className="text-amber-400" /> 파르나스호텔 다이나믹 프라이싱 알고리즘 가이드
+                  </h2>
+                  <p className="text-xs text-slate-400 mt-1">수익관리(Revenue Management) 담당자 및 경영진을 위한 실시간 가격 산정 아키텍처 안내서입니다.</p>
+                </div>
+              </div>
+
+              {/* 1. 기본 수식 아키텍처 */}
+              <div className="bg-slate-950 border border-slate-800 p-5 rounded-xl space-y-3">
+                <h3 className="font-bold text-amber-400 text-sm flex items-center gap-2">📐 1. 알고리즘 기본 구조 및 공식 아키텍처</h3>
+                <div className="bg-slate-900 p-3 rounded-lg font-mono text-white text-xs border border-slate-800">
+                  $$P_{\text{final}} = P_{\text{base}} \times M_{\text{OCC}} \times M_{\text{Speed}} \times M_{\text{Event}} \times M_{\text{Segment}}$$
+                </div>
+                <div className="grid grid-cols-5 gap-2 text-[11px] pt-2">
+                  <div className="bg-slate-900 p-2.5 rounded border border-slate-800"><div className="font-bold text-white mb-1">P_base</div><div className="text-slate-400">시즌/요일별 설정된 기본 표준 객실가</div></div>
+                  <div className="bg-slate-900 p-2.5 rounded border border-slate-800"><div className="font-bold text-amber-400 mb-1">M_OCC</div><div className="text-slate-400">현 시점 목표 날짜 객실 점유율 승수</div></div>
+                  <div className="bg-slate-900 p-2.5 rounded border border-slate-800"><div className="font-bold text-amber-400 mb-1">M_Speed</div><div className="text-slate-400">최근 24~72시간 예약 증가율(Pick-up)</div></div>
+                  <div className="bg-slate-900 p-2.5 rounded border border-slate-800"><div className="font-bold text-amber-400 mb-1">M_Event</div><div className="text-slate-400">코엑스 MICE, 전시회 및 연휴 변수</div></div>
+                  <div className="bg-slate-900 p-2.5 rounded border border-slate-800"><div className="font-bold text-amber-400 mb-1">M_Segment</div><div className="text-slate-400">IHG 멤버십 특가 및 OTA 채널 수수료 반영</div></div>
+                </div>
+              </div>
+
+              {/* 2. 단계별 4-Step 로직 */}
+              <div className="bg-slate-950 border border-slate-800 p-5 rounded-xl space-y-3">
+                <h3 className="font-bold text-amber-400 text-sm flex items-center gap-2">🔄 2. 단계별 가격 결정 로직 (4-Step Logic)</h3>
+                <div className="grid grid-cols-4 gap-3 text-xs">
+                  <div className="bg-slate-900 p-3.5 rounded-lg border border-slate-800">
+                    <div className="font-bold text-white mb-1">[1단계] 데이터 수집</div>
+                    <div className="text-slate-400 text-[11px]">내부(OCC, Pick-up) 및 외부(코엑스 MICE, 경쟁사 가격) 실시간 연동</div>
+                  </div>
+                  <div className="bg-slate-900 p-3.5 rounded-lg border border-slate-800">
+                    <div className="font-bold text-white mb-1">[2단계] 수요 지수 산출</div>
+                    <div className="text-slate-400 text-[11px]">예약 속도 및 외부 MICE 이벤트 가중치를 결합하여 종합 수요 지수 도출</div>
+                  </div>
+                  <div className="bg-slate-900 p-3.5 rounded-lg border border-slate-800">
+                    <div className="font-bold text-white mb-1">[3단계] 가중치 매핑</div>
+                    <div className="text-slate-400 text-[11px]">점유율 구간 및 남은 일수(DBA)별 Pricing Matrix에 따른 승수 적용</div>
+                  </div>
+                  <div className="bg-slate-900 p-3.5 rounded-lg border border-slate-800">
+                    <div className="font-bold text-white mb-1">[4단계] 가드레일 검증</div>
+                    <div className="text-slate-400 text-[11px]">최저가/최고가 방어선 및 스위트 브랜드 가치 격차(Spread) 보장 검증</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* 3. 모듈별 세부 규칙 */}
+              <div className="bg-slate-950 border border-slate-800 p-5 rounded-xl space-y-3">
+                <h3 className="font-bold text-amber-400 text-sm flex items-center gap-2">⚙️ 3. 핵심 모듈별 상세 규칙 (Rules & Matrix)</h3>
+                <div className="space-y-2 text-xs text-slate-300">
+                  <div className="bg-slate-900 p-3 rounded-lg border border-slate-800 flex justify-between items-center">
+                    <div><span className="font-bold text-white">Module A (OCC 가중치):</span> 85% 이상 시 1.50x, 70~84% 시 1.20x, 50~69% 시 1.05x 부여</div>
+                    <span className="text-[10px] text-amber-400 bg-amber-500/10 px-2 py-1 rounded">점유율 연동</span>
+                  </div>
+                  <div className="bg-slate-900 p-3 rounded-lg border border-slate-800 flex justify-between items-center">
+                    <div><span className="font-bold text-white">Module B (Pick-up Speed):</span> 최근 48시간 내 예약 폭증(+50%) 시 Rapid Acceleration(1.15x) 발동</div>
+                    <span className="text-[10px] text-amber-400 bg-amber-500/10 px-2 py-1 rounded">실시간 속도</span>
+                  </div>
+                  <div className="bg-slate-900 p-3 rounded-lg border border-slate-800 flex justify-between items-center">
+                    <div><span className="font-bold text-white">Module C (코엑스 MICE):</span> 대규모 국제회의 및 IT 전시회(Level 1) 시 MICE 지수(1.35x) 자동 부스팅</div>
+                    <span className="text-[10px] text-amber-400 bg-amber-500/10 px-2 py-1 rounded">특화 변수</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 4. 안전장치 (Constraints & Guardrails) */}
+              <div className="bg-slate-950 border border-slate-800 p-5 rounded-xl space-y-3">
+                <h3 className="font-bold text-amber-400 text-sm flex items-center gap-2">🛡️ 4. 제약 조건 및 안전장치 (Constraints & Guardrails)</h3>
+                <div className="grid grid-cols-3 gap-3 text-xs">
+                  <div className="bg-slate-900 p-3.5 rounded-lg border border-slate-800">
+                    <div className="font-bold text-white mb-1">가격 하한선(Floor Price)</div>
+                    <div className="text-slate-400 text-[11px]">브랜드 가치 방어를 위해 클래식 룸 기준 최소 35만 원 이하 인하 차단</div>
+                  </div>
+                  <div className="bg-slate-900 p-3.5 rounded-lg border border-slate-800">
+                    <div className="font-bold text-white mb-1">스위트 객실 격차(Spread)</div>
+                    <div className="text-slate-400 text-[11px]">일반 객실 상승 시에도 스위트는 클래식 대비 최소 1.5배 이상 단가 유지</div>
+                  </div>
+                  <div className="bg-slate-900 p-3.5 rounded-lg border border-slate-800">
+                    <div className="font-bold text-white mb-1">변동 폭 제어(Smoothing)</div>
+                    <div className="text-slate-400 text-[11px]">1회 갱신 시 기존 대비 최대 ±20% 범위 내로 급격한 요금 변동 방지</div>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          )}
+
+          {activeMenu === '요금 설정' && (
+            <div className="flex-1 bg-slate-900 rounded-lg border border-slate-800 p-6 flex flex-col gap-5 overflow-auto shadow-xl">
+              <div className="flex justify-between items-center border-b border-slate-800 pb-4">
+                <div><h2 className="text-base font-bold text-white flex items-center gap-2"><Sliders size={20} className="text-amber-400" /> 파르나스 객실 상품별 기준 요금 및 가드레일 설정</h2></div>
+                <button onClick={() => { applyAI(); showToast('요금 설정 및 가드레일이 알고리즘에 반영되었습니다!'); }} className="flex items-center gap-2 bg-amber-500 text-slate-950 px-4 py-2 rounded-lg font-bold hover:bg-amber-400 text-xs"><Save size={14} /> 저장 및 반영</button>
+              </div>
+              <div className="grid grid-cols-2 gap-6">
+                {roomConfigs.map((room, idx) => (
+                  <div key={idx} className="bg-slate-950 border border-slate-800 rounded-xl p-5 flex flex-col gap-4">
+                    <div className="font-bold text-white text-sm border-b border-slate-800 pb-2">{room.type}</div>
+                    <div><label className="block text-xs font-medium text-slate-400 mb-1">기준 정가 (Base Rate)</label><input type="number" step="10000" value={room.basePrice} onChange={(e) => { const updated = [...roomConfigs]; updated[idx].basePrice = Number(e.target.value); setRoomConfigs(updated); }} className="w-full border border-slate-700 rounded-lg p-2.5 text-xs font-bold bg-slate-900 text-white outline-none" /></div>
+                    <div><label className="block text-xs font-medium text-slate-400 mb-1">최저 방어 요금 (Floor Price)</label><input type="number" step="10000" value={room.minPrice} onChange={(e) => { const updated = [...roomConfigs]; updated[idx].minPrice = Number(e.target.value); setRoomConfigs(updated); }} className="w-full border border-slate-700 rounded-lg p-2.5 text-xs font-bold bg-slate-900 text-white outline-none" /></div>
+                    <div><label className="block text-xs font-medium text-slate-400 mb-1">최고 상한 요금 (Max Ceiling)</label><input type="number" step="10000" value={room.maxPrice} onChange={(e) => { const updated = [...roomConfigs]; updated[idx].maxPrice = Number(e.target.value); setRoomConfigs(updated); }} className="w-full border border-slate-700 rounded-lg p-2.5 text-xs font-bold bg-slate-900 text-white outline-none" /></div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {activeMenu === '예약 현황' && (
+            <div className="flex-1 bg-slate-900 rounded-lg border border-slate-800 p-6 flex flex-col gap-4 overflow-auto shadow-xl">
+              <div className="border-b border-slate-800 pb-4"><h2 className="text-base font-bold text-white flex items-center gap-2"><CalendarDays size={20} className="text-amber-400" /> 실시간 객실 예약 현황 및 블록 관리</h2></div>
+              <div className="grid grid-cols-3 gap-4">
+                <div className="bg-amber-950/30 border border-amber-900/50 rounded-xl p-4"><div className="text-xs text-amber-300 font-medium mb-1">일반 총 가용 객실</div><div className="text-2xl font-black text-amber-400">420실</div></div>
+                <div className="bg-slate-950 border border-slate-800 rounded-xl p-4"><div className="text-xs text-slate-400 font-medium mb-1">확정 예약 객실 (OTA 연동)</div><div className="text-2xl font-black text-white">{metrics.occBreakdown.sold}실 ({metrics.baseOcc}%)</div></div>
+                <div className="bg-slate-950 border border-slate-800 rounded-xl p-4"><div className="text-xs text-slate-400 font-medium mb-1">법인 계약 및 멤버십 블록</div><div className="text-2xl font-black text-white">130실 (별도 관리)</div></div>
+              </div>
+            </div>
+          )}
+
+          {activeMenu === '시장 분석' && (
+            <div className="flex-1 bg-slate-900 rounded-lg border border-slate-800 p-6 flex flex-col gap-4 overflow-auto shadow-xl">
+              <div className="border-b border-slate-800 pb-4"><h2 className="text-base font-bold text-white flex items-center gap-2"><LineChartIcon size={20} className="text-amber-400" /> 강남권 경쟁사 및 코엑스 수요 시장 분석</h2></div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-slate-950 border border-slate-800 rounded-xl p-5">
+                  <div className="font-bold text-white text-sm mb-2">조선 팰리스 컴프세트 비교</div>
+                  <p className="text-xs text-slate-400 leading-relaxed">코엑스 MICE 행사 연동 시 파르나스 클래식 룸과 스위트의 가격 스프레드가 경쟁사 대비 우수한 점유율을 기록하고 있습니다.</p>
+                </div>
+                <div className="bg-slate-950 border border-slate-800 rounded-xl p-5">
+                  <div className="font-bold text-white text-sm mb-2">OTA 채널 마진 분석</div>
+                  <p className="text-xs text-slate-400 leading-relaxed">IHG 공식 디렉트 채널과 멤버십 락인을 통한 유입 비중이 높을수록 순수 객실 마진이 극대화됩니다.</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeMenu === 'AI 최적화 룰' && (
+            <div className="flex-1 bg-slate-900 rounded-lg border border-slate-800 p-6 flex flex-col gap-4 overflow-auto shadow-xl">
+              <div className="border-b border-slate-800 pb-4"><h2 className="text-base font-bold text-white flex items-center gap-2"><Sparkles size={20} className="text-amber-400" /> 알고리즘 가드레일 및 자동화 룰 설정</h2></div>
+              <div className="space-y-3">
+                {[
+                  { key: 'autoPriceSync', title: '경쟁사 가격 실시간 자동 동기화 봇', desc: '상권 내 컴프세트 요금 변동 시 자사 요금 자동 보정' },
+                  { key: 'corpBlockProtection', title: '법인 계약 및 VIP 홀딩 블록 보호 가드레일', desc: '성수기 시즌 일반 객실 요금을 자동 상향하여 수익성 사수' },
+                  { key: 'competitorUnderCutGuard', title: '출혈 경쟁 방지 하한선(Floor Price) 자동 방어', desc: '경쟁사의 무리한 할인전에도 최소 방어선 이하로 하락 방지' },
+                  { key: 'weekendSurgeBoost', title: '코엑스 MICE 및 주말 서지(Surge) 부스팅', desc: '수요 집중 구간에 승수를 곱해 뾰족형 서지 패턴 단가 극대화' }
+                ].map((rule) => {
+                  const isOn = aiRules[rule.key as keyof typeof aiRules];
+                  return (
+                    <div key={rule.key} className="bg-slate-950 border border-slate-800 rounded-xl p-4 flex items-center justify-between">
+                      <div><div className="font-bold text-white text-xs">{rule.title}</div><div className="text-[11px] text-slate-400 mt-0.5">{rule.desc}</div></div>
+                      <button onClick={() => { setAiRules({ ...aiRules, [rule.key]: !isOn }); showToast(`[${rule.title}] 룰이 변경되었습니다.`); }} className={`text-xs font-bold px-3.5 py-1.5 rounded-lg border transition-all ${isOn ? 'bg-amber-500 text-slate-950 border-amber-500 shadow-md' : 'bg-slate-800 text-slate-400 border-slate-700'}`}>{isOn ? '활성화 (ON)' : '비활성화 (OFF)'}</button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {activeMenu === '시스템 설정' && (
+            <div className="flex-1 bg-slate-900 rounded-lg border border-slate-800 p-6 flex flex-col gap-5 overflow-auto shadow-xl">
+              <div className="border-b border-slate-800 pb-4">
+                <h2 className="text-base font-bold text-white flex items-center gap-2"><ShieldAlert size={20} className="text-amber-400" /> PMS / OTA 채널 연동 및 시스템 설정</h2>
+              </div>
+              <div className="grid grid-cols-2 gap-5">
+                <div className="bg-slate-950 border border-slate-800 rounded-xl p-5 flex flex-col gap-3">
+                  <div className="font-bold text-white text-sm flex items-center gap-2"><Globe size={16} className="text-blue-400"/> PMS 및 채널 파트너 연동 현황</div>
+                  <div className="space-y-2 mt-1">
+                    {otaChannels.map((ota, idx) => (
+                      <div key={idx} className="bg-slate-900 border border-slate-800 p-3 rounded-lg flex justify-between items-center text-xs">
+                        <div>
+                          <div className="font-bold text-white">{ota.name}</div>
+                          <div className="text-[10px] text-slate-400">수수료율: {ota.commission} | 마진: {ota.margin}</div>
+                        </div>
+                        <span className="text-emerald-400 font-bold bg-emerald-950/50 border border-emerald-800/60 px-2 py-1 rounded text-[10px]">
+                          {ota.status}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="bg-slate-950 border border-slate-800 rounded-xl p-5 flex flex-col justify-between">
+                  <div>
+                    <div className="font-bold text-white text-sm mb-2">알고리즘 산출 요금 강제 동기화</div>
+                    <p className="text-xs text-slate-400 leading-relaxed mb-4">다이내믹 프라이싱 서지 차트에서 산출된 최신 요금을 모든 PMS 및 OTA 채널에 실시간 푸시합니다.</p>
+                  </div>
+                  <button onClick={() => showToast('모든 채널과 요금이 성공적으로 동기화되었습니다.')} className="w-full bg-amber-500 text-slate-950 py-2.5 rounded-lg font-bold hover:bg-amber-400 text-xs shadow-md flex items-center justify-center gap-2">
+                    <RefreshCcw size={14} /> 채널 요금 일괄 동기화 (Rate Push)
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+        </div>
+      </main>
+    </div>
+  );
+}
