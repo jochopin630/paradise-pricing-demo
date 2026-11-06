@@ -90,6 +90,7 @@ function FamilyApp() {
   const [editing, setEditing] = useState<FamilyEvent | null>(null);
 
   useEffect(() => saveEvents(events), [events]);
+  const cloud = useCloudSync(events, setEvents);
   useEffect(() => saveSettings(settings), [settings]);
   useEffect(() => {
     const el = document.documentElement;
@@ -134,6 +135,17 @@ function FamilyApp() {
       <div className="mx-auto flex min-h-dvh max-w-md flex-col bg-stone-50 shadow-sm">
         <header className="sticky top-0 z-20 border-b border-stone-200 bg-white/95 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] backdrop-blur">
           <h1 className="text-2xl font-extrabold tracking-tight">우리 가족 기념일</h1>
+          {cloud !== "off" && (
+            <p className={`text-sm font-bold ${cloud === "on" ? "text-emerald-700" : cloud === "loading" ? "text-stone-500" : "text-red-700"}`}>
+              {cloud === "on"
+                ? "☁ 노트북·휴대폰 자동 동기화 중"
+                : cloud === "loading"
+                  ? "☁ 저장소에 연결하는 중…"
+                  : cloud === "slow"
+                    ? "☁ 저장소에 아직 연결되지 않았어요. 고친 내용은 이 기기에 먼저 저장돼요."
+                    : "☁ 동기화가 끊겼어요. 페이지를 다시 열어 주세요. 이 기기에는 저장돼 있어요."}
+            </p>
+          )}
           <p className="mt-0.5 text-base text-stone-600">
             오늘 {today.y}년 {today.m}월 {today.d}일 ({WEEK[weekday(today)]}) · 음력 {lunarText(today)}
           </p>
@@ -200,6 +212,95 @@ function FamilyApp() {
       )}
     </div>
   );
+}
+
+// ---------- 노트북·휴대폰 동기화 (단독 페이지에서 claude.ai 저장소 사용) ----------
+type CloudState = "off" | "loading" | "slow" | "on" | "error";
+interface CloudDoc {
+  exists: boolean;
+  data(): Record<string, unknown> | undefined;
+  metadata: { fromCache: boolean; hasPendingWrites: boolean };
+}
+interface CloudRef {
+  set(data: Record<string, unknown>): Promise<void>;
+  onSnapshot(next: (s: CloudDoc) => void, error?: (e: unknown) => void): () => void;
+}
+
+function useCloudSync(events: FamilyEvent[], setEvents: (e: FamilyEvent[]) => void): CloudState {
+  const [state, setState] = useState<CloudState>(IS_STANDALONE_PAGE ? "loading" : "off");
+  const refHolder = useRef<CloudRef | null>(null);
+  const synced = useRef<string | null>(null); // 저장소와 같은 내용(JSON)
+  const latest = useRef(events);
+  const writing = useRef<Promise<void>>(Promise.resolve());
+
+  useEffect(() => {
+    latest.current = events;
+  }, [events]);
+
+  const push = (list: FamilyEvent[]) => {
+    const json = JSON.stringify(list);
+    if (!refHolder.current || json === synced.current) return;
+    synced.current = json;
+    const ref = refHolder.current;
+    // 같은 문서에는 한 번에 하나씩 씀
+    writing.current = writing.current.then(() => ref.set({ events: list, updatedAt: new Date().toISOString() })).catch(() => setState("error"));
+  };
+
+  useEffect(() => {
+    if (!IS_STANDALONE_PAGE) return;
+    let cancelled = false;
+    let unsub: (() => void) | undefined;
+    const timer = setTimeout(() => setState((s) => (s === "loading" ? "slow" : s)), 10000);
+    (async () => {
+      const c = (window as unknown as { claude?: { use?: (n: string) => Promise<unknown> } }).claude;
+      const db = (c?.use ? await c.use("db").catch(() => null) : null) as { doc(path: string): CloudRef } | null;
+      if (cancelled) return;
+      if (!db) {
+        clearTimeout(timer);
+        setState("off");
+        return;
+      }
+      const ref = db.doc("family/data");
+      unsub = ref.onSnapshot(
+        (snap) => {
+          if (snap.metadata.fromCache) return;
+          clearTimeout(timer);
+          refHolder.current = ref;
+          setState("on");
+          if (snap.exists) {
+            const list = parseBackup(JSON.stringify(snap.data() ?? {}));
+            if (!list) return;
+            const json = JSON.stringify(list);
+            if (json !== synced.current) {
+              synced.current = json;
+              setEvents(list);
+            }
+          } else {
+            push(latest.current); // 저장소가 비어 있으면 이 기기 내용으로 시작
+          }
+        },
+        () => {
+          clearTimeout(timer);
+          setState("error");
+        },
+      );
+    })();
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+      unsub?.();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 이 기기에서 고친 내용을 잠시 뒤 저장소로
+  useEffect(() => {
+    if (state !== "on") return;
+    const t = setTimeout(() => push(events), 600);
+    return () => clearTimeout(t);
+  }, [events, state]);
+
+  return state;
 }
 
 function lunarText(d: YMD) {
@@ -904,7 +1005,7 @@ function SettingsTab({
 
       <section className={box}>
         <h2 className="text-xl font-extrabold">백업·옮기기</h2>
-        <p className="text-base text-stone-600">입력한 내용은 이 휴대폰에만 저장돼요. 폰을 바꾸거나 다른 사람과 나누려면 백업을 쓰세요.</p>
+        <p className="text-base text-stone-600">{IS_STANDALONE_PAGE ? "입력한 내용은 claude.ai 계정에 저장돼 노트북과 휴대폰에서 똑같이 보여요. 만일을 위해 가끔 백업해 두세요." : "입력한 내용은 이 휴대폰에만 저장돼요. 폰을 바꾸거나 다른 사람과 나누려면 백업을 쓰세요."}</p>
         {IS_STANDALONE_PAGE ? (
           <>
             <button
