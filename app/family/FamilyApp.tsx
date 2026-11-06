@@ -52,6 +52,27 @@ const SIDE_STYLE: Record<Side, string> = {
 
 const subscribeNoop = () => () => {};
 
+// 링크로 여는 단독 페이지(아티팩트)에서는 파일 저장·알림·설치가 막혀 있어 화면을 바꿈
+const IS_STANDALONE_PAGE = typeof window !== "undefined" && !!(window as unknown as { __FAMILY_PAGE__?: boolean }).__FAMILY_PAGE__;
+
+/** 한 번 누르면 확인 문구로 바뀌고, 한 번 더 눌러야 실행되는 버튼 */
+function ConfirmButton({ label, confirmLabel, onConfirm, className }: { label: string; confirmLabel: string; onConfirm: () => void; className: string }) {
+  const [armed, setArmed] = useState(false);
+  useEffect(() => {
+    if (!armed) return;
+    const t = setTimeout(() => setArmed(false), 5000);
+    return () => clearTimeout(t);
+  }, [armed]);
+  return (
+    <button
+      onClick={() => (armed ? (setArmed(false), onConfirm()) : setArmed(true))}
+      className={`${className} ${armed ? "!border-red-600 !bg-red-600 !text-white" : ""}`}
+    >
+      {armed ? confirmLabel : label}
+    </button>
+  );
+}
+
 export default function FamilyAppGate() {
   // 저장된 데이터는 브라우저에만 있으므로 클라이언트에서만 그림
   const isClient = useSyncExternalStore(subscribeNoop, () => true, () => false);
@@ -81,7 +102,7 @@ function FamilyApp() {
 
   // 앱 설치용 서비스 워커
   useEffect(() => {
-    if ("serviceWorker" in navigator) {
+    if (!IS_STANDALONE_PAGE && "serviceWorker" in navigator) {
       navigator.serviceWorker.register("/family-sw.js", { scope: "/family" }).catch(() => {});
     }
   }, []);
@@ -771,14 +792,12 @@ function EditSheet({
           </div>
 
           {!isNew && (
-            <button
-              onClick={() => {
-                if (confirm(`'${initial.name}' 항목을 삭제할까요?`)) onDelete(initial.id);
-              }}
+            <ConfirmButton
+              label="삭제"
+              confirmLabel={`한 번 더 누르면 '${initial.name}' 삭제`}
+              onConfirm={() => onDelete(initial.id)}
               className="w-full rounded-2xl border-2 border-red-300 bg-white py-3 text-lg font-extrabold text-red-600"
-            >
-              삭제
-            </button>
+            />
           )}
         </div>
       </div>
@@ -815,6 +834,10 @@ function SettingsTab({
   const fileRef = useRef<HTMLInputElement>(null);
   const [perm, setPerm] = useState(typeof Notification === "undefined" ? "unsupported" : Notification.permission);
   const [showCheck, setShowCheck] = useState(false);
+  const [pending, setPending] = useState<FamilyEvent[] | null>(null);
+  const [msg, setMsg] = useState("");
+  const [pasteText, setPasteText] = useState("");
+  const backupText = () => JSON.stringify({ version: 1, events }, null, 2);
   const card = useMemo(() => (showCheck ? checkCard() : []), [showCheck]);
   const hol = useMemo(() => (showCheck ? checkHolidays() : []), [showCheck]);
   const box = "rounded-2xl border border-stone-200 bg-white p-4 space-y-2";
@@ -844,6 +867,7 @@ function SettingsTab({
         </p>
       </section>
 
+      {!IS_STANDALONE_PAGE && (
       <section className={box}>
         <h2 className="text-xl font-extrabold">알림</h2>
         <p className="text-base text-stone-600">
@@ -865,7 +889,8 @@ function SettingsTab({
           </button>
         )}
       </section>
-
+      )}
+      {!IS_STANDALONE_PAGE && (
       <section className={box}>
         <h2 className="text-xl font-extrabold">휴대폰 캘린더에 넣기</h2>
         <p className="text-base text-stone-600">
@@ -875,16 +900,57 @@ function SettingsTab({
           {today.y}~{today.y + 2}년 일정 내려받기
         </button>
       </section>
+      )}
 
       <section className={box}>
         <h2 className="text-xl font-extrabold">백업·옮기기</h2>
-        <p className="text-base text-stone-600">입력한 내용은 이 휴대폰에만 저장돼요. 폰을 바꾸거나 다른 사람과 나누려면 백업 파일을 쓰세요.</p>
-        <button className={btn} onClick={() => downloadFile(`가족기념일_백업_${ymdKey(today)}.json`, JSON.stringify({ version: 1, events }, null, 2), "application/json")}>
-          백업 파일 저장
-        </button>
-        <button className={btn2} onClick={() => fileRef.current?.click()}>
-          백업 파일 불러오기
-        </button>
+        <p className="text-base text-stone-600">입력한 내용은 이 휴대폰에만 저장돼요. 폰을 바꾸거나 다른 사람과 나누려면 백업을 쓰세요.</p>
+        {IS_STANDALONE_PAGE ? (
+          <>
+            <button
+              className={btn}
+              onClick={() =>
+                navigator.clipboard
+                  .writeText(backupText())
+                  .then(() => setMsg("백업 내용을 복사했어요. 카카오톡 나에게 보내기 등에 붙여 넣어 보관하세요."))
+                  .catch(() => {
+                    setPasteText(backupText());
+                    setMsg("자동 복사가 안 돼요. 아래 칸의 글을 길게 눌러 전체 선택 후 복사하세요.");
+                  })
+              }
+            >
+              백업 내용 복사
+            </button>
+            <textarea
+              id="backup-paste"
+              rows={3}
+              value={pasteText}
+              onChange={(e) => setPasteText(e.target.value)}
+              placeholder="복원하려면 여기에 백업 내용을 붙여 넣으세요"
+              className="w-full rounded-xl border border-stone-300 p-3 text-base"
+            />
+            <button
+              className={btn2}
+              onClick={() => {
+                const list = parseBackup(pasteText);
+                if (!list) return setMsg("붙여 넣은 내용을 읽을 수 없어요. 백업 내용 전체를 넣었는지 확인하세요.");
+                setPending(list);
+                setMsg("");
+              }}
+            >
+              붙여 넣은 내용으로 복원
+            </button>
+          </>
+        ) : (
+          <>
+            <button className={btn} onClick={() => downloadFile(`가족기념일_백업_${ymdKey(today)}.json`, backupText(), "application/json")}>
+              백업 파일 저장
+            </button>
+            <button className={btn2} onClick={() => fileRef.current?.click()}>
+              백업 파일 불러오기
+            </button>
+          </>
+        )}
         <input
           ref={fileRef}
           type="file"
@@ -895,28 +961,54 @@ function SettingsTab({
             e.target.value = "";
             if (!file) return;
             const list = parseBackup(await file.text());
-            if (!list) return alert("백업 파일을 읽을 수 없어요.");
-            if (confirm(`${list.length}건으로 바꿀까요? 지금 내용은 지워집니다.`)) setEvents(list);
+            if (!list) return setMsg("백업 파일을 읽을 수 없어요. 이 앱에서 저장한 .json 파일인지 확인하세요.");
+            setPending(list);
+            setMsg("");
           }}
         />
-        <button
+        {pending && (
+          <div className="space-y-2 rounded-xl bg-amber-50 p-3">
+            <p className="text-lg font-bold">백업의 {pending.length}건으로 바꿀까요? 지금 내용은 지워집니다.</p>
+            <div className="grid grid-cols-2 gap-2">
+              <button className={btn2} onClick={() => setPending(null)}>
+                취소
+              </button>
+              <button
+                className="w-full rounded-xl bg-red-600 py-3 text-lg font-bold text-white"
+                onClick={() => {
+                  setEvents(pending);
+                  setPending(null);
+                  setPasteText("");
+                  setMsg(`${pending.length}건을 복원했어요.`);
+                }}
+              >
+                바꾸기
+              </button>
+            </div>
+          </div>
+        )}
+        {msg && <p className="text-base font-bold text-sky-800">{msg}</p>}
+        <ConfirmButton
           className={btn2}
-          onClick={() => {
-            if (confirm("처음 카드 내용으로 되돌릴까요? 입력한 년도·수정 내용이 모두 지워집니다.")) setEvents(seedEvents());
+          label="처음 데이터로 되돌리기"
+          confirmLabel="한 번 더 누르면 입력한 년도·수정 내용이 모두 지워져요"
+          onConfirm={() => {
+            setEvents(seedEvents());
+            setMsg("처음 카드 내용으로 되돌렸어요.");
           }}
-        >
-          처음 데이터로 되돌리기
-        </button>
+        />
       </section>
 
-      <section className={box}>
-        <h2 className="text-xl font-extrabold">홈 화면에 앱으로 설치</h2>
-        <p className="text-lg">
-          <b>아이폰</b>: Safari 아래쪽 공유 버튼 → ‘홈 화면에 추가’
-          <br />
-          <b>갤럭시</b>: Chrome 오른쪽 위 ⋮ → ‘홈 화면에 추가’ 또는 ‘앱 설치’
-        </p>
-      </section>
+      {!IS_STANDALONE_PAGE && (
+        <section className={box}>
+          <h2 className="text-xl font-extrabold">홈 화면에 앱으로 설치</h2>
+          <p className="text-lg">
+            <b>아이폰</b>: Safari 아래쪽 공유 버튼 → ‘홈 화면에 추가’
+            <br />
+            <b>갤럭시</b>: Chrome 오른쪽 위 ⋮ → ‘홈 화면에 추가’ 또는 ‘앱 설치’
+          </p>
+        </section>
+      )}
 
       <section className={box}>
         <h2 className="text-xl font-extrabold">음력 계산 방법</h2>
