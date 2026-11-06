@@ -1,0 +1,17 @@
+{
+  "name": "우리 가족 기념일",
+  "short_name": "가족기념일",
+  "description": "음력·양력 가족 생일, 결혼기념일, 제사 달력",
+  "lang": "ko",
+  "start_url": "/family",
+  "scope": "/family",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#fafaf9",
+  "theme_color": "#be123c",
+  "icons": [
+    { "src": "/family-icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/family-icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/family-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
